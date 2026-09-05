@@ -5,12 +5,12 @@ English · [中文](INSTALL_CODEX.zh-CN.md)
 ## Supported environment
 
 - Codex Desktop or Codex CLI with `codex plugin marketplace`
-- Installed XTApp Studio, already running on this machine
+- Signed-in XTApp Studio
 - Plugin selector `xtapp-codex-plugin@xtapp-codex-plugin-github`
 - Bundled MCP identity `xtapp_studio`
-- Preview page `http://127.0.0.1:5173/studio/preview?preview=1`
-- The Studio process must stay running; this revision has no headless
-  companion service
+- Preview page `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`
+  (login required)
+- Keep that official preview page open
 
 ## Normal Git marketplace install
 
@@ -19,9 +19,9 @@ codex plugin marketplace add linchuanXu/xtapp-codex-plugin --ref main --json
 codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
 ```
 
-If XTApp Studio is not running, ask the user to start their installed
-Studio. Do not invent a download URL, clone path, or install script. Do
-not hard-code a port or source path.
+If the preview is not open, ask the user to sign in and open
+`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`. Do not invent a
+download URL, clone path, or install script.
 
 The plugin has a local `.mcp.json` and no remote MCP endpoint.
 
@@ -37,12 +37,10 @@ Expected plugin identity:
 - MCP: bundled `xtapp_studio` stdio, command `node ./mcp/server.bundle.mjs`
 
 Start a new Codex task after installation so it loads the new plugin
-snapshot. Then open the preview page and keep it open. If the browser
-offers 「连接文件夹」, choose the current worktree; otherwise ask Codex to
-watch the worktree. Folder sync is a convenience path, not the install
-gate.
+snapshot. Then open
+`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1` and keep it open.
 
-Non-default Studio ports:
+Local Studio override only:
 
 ```bash
 XTAPP_STUDIO_CONTROL_URL=http://127.0.0.1:5173
@@ -62,10 +60,11 @@ CODEX_HOME="$XTAPP_CODEX_PLUGIN_TEST_HOME" codex plugin add \
 CODEX_HOME="$XTAPP_CODEX_PLUGIN_TEST_HOME" codex plugin list --json
 ```
 
-Plugin installation alone does not start Studio. For a full smoke, start
-Studio separately, open `/studio/preview?preview=1`, then use the plugin
-tools against that loopback bridge. `get_xtapp_preview_status` must be
-read as written. An unauthenticated or unreachable bridge must stay
+Plugin installation alone does not open the preview. For a full smoke,
+sign in and open
+`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`, then use the
+plugin tools against that page. `get_xtapp_preview_status` must be read
+as written. An unauthenticated or unreachable preview must stay
 `not_connected`, not switch to a guessed host.
 
 Delete only the exact temporary roots created by the smoke.
@@ -102,8 +101,8 @@ Report all of:
 
 Do not claim a run succeeded unless the bridge result is `complete`.
 `queued` and `queued_timeout` mean Studio accepted a command but has not
-returned an execution result. `not_connected` means the loopback bridge
-is down.
+returned an execution result. `not_connected` means the preview page is
+not reachable.
 
 Source sync reads only the current worktree paths the user passed in.
 It stays on the local machine. Binary assets outside the bounded `.xic`

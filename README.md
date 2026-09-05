@@ -26,14 +26,15 @@ status widget. It does not execute Lua and it is not the device simulator:
 ```text
 Codex plugin
   -> bundled xtapp_studio MCP
-  -> local XTApp Studio preview bridge
+  -> XTApp Studio preview page
   -> Lua Worker / X4 Classic / X4 Pro simulator
 ```
 
-Users install this plugin and keep XTApp Studio running. The MCP talks to
-`http://127.0.0.1:5173/preview/*` on loopback only. There is no remote MCP
-dependency and no Codex-side Studio credential. A preview status of
-`not_connected` means Studio is not reachable; it is not success.
+Users install this plugin, sign in to XTApp Studio, and keep the official
+preview page open. Open
+`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1` (login required).
+A preview status of `not_connected` means that page is not reachable; it is
+not success.
 
 ## Current package
 
@@ -45,9 +46,8 @@ dependency and no Codex-side Studio credential. A preview status of
 - Distribution: published Git marketplace from `main`
 - Host: Codex only
 - MCP: bundled `xtapp_studio` stdio (`node ./mcp/server.bundle.mjs`)
-- Local runtime: installed XTApp Studio
-- Default control URL: `http://127.0.0.1:5173`
-- Default preview: `http://127.0.0.1:5173/studio/preview?preview=1`
+- Runtime: signed-in XTApp Studio
+- Default preview: `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`
 - Skills: `xtapp-contracts`, `xtapp-open-preview`
 - Public knowledge: `knowledge/index.json` (schema 2, 22 entries)
 - Public catalog: `catalog/index.json` (107 reviewed text templates)
@@ -69,11 +69,10 @@ Studio source path. Verify:
 codex plugin list --json
 ```
 
-If XTApp Studio is not running, ask the user to start their installed
-Studio. Do not invent a download URL, clone command, or install script.
-Open the preview page in the Codex in-app browser and keep it open. Start
-a new Codex task after plugin installation, then ask Codex to run the
-current XTApp project.
+If the preview is not open, ask the user to sign in and open
+`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1` in the Codex
+in-app browser. Keep that page open. Start a new Codex task after plugin
+installation, then ask Codex to run the current XTApp project.
 
 See [docs/INSTALL_CODEX.md](docs/INSTALL_CODEX.md) for isolated validation
 and uninstall, or the [Chinese install guide](docs/INSTALL_CODEX.zh-CN.md).
@@ -84,7 +83,7 @@ Identity fields live in [`release-manifest.json`](release-manifest.json).
 This repository contains the portable Codex payload, marketplace metadata,
 bundled public knowledge, bundled public templates, and installation
 documentation. Lua execution, asset pipelines, and the device simulator
-stay in the user's installed XTApp Studio.
+stay in XTApp Studio.
 
 Product updates behind the stable `/preview/*` contract do not
 automatically change this repository. Refresh the knowledge index and

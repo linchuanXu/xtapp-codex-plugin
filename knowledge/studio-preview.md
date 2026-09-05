@@ -1,12 +1,16 @@
-# Studio 本地预览桥
+# Studio 预览桥
 
 ## 作用
 
-Studio 是本地项目和 Lua Worker 的运行 authority。Codex 插件只通过本机 `/preview/*` 接口排队命令，不读取用户的文件系统，也不执行 shell。
+Studio 是项目和 Lua Worker 的运行 authority。Codex 插件只通过 `/preview/*` 接口排队命令，不读取用户的文件系统，也不执行 shell。
 
 ## 启动
 
-启动已安装的 XTApp Studio，打开 `/studio/preview`（普通 `/studio` 页面也会连接桥）。默认控制地址是 `http://127.0.0.1:5173`，非默认端口通过 `XTAPP_STUDIO_CONTROL_URL` 配置。
+登录 XTApp Studio，打开官网预览页（需登录）：
+
+`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`
+
+保持这个页面打开。本机覆盖通过 `XTAPP_STUDIO_CONTROL_URL` 配置。
 
 ## 能力
 
@@ -22,4 +26,4 @@ Studio 是本地项目和 Lua Worker 的运行 authority。Codex 插件只通过
 
 ## 边界
 
-Vite middleware 只适用于本地开发服务器。桌面发行版应把同一组接口迁移到随 Studio 启动的 loopback companion 服务；桥接服务必须只监听 `127.0.0.1`，校验输入枚举并限制上下文大小。
+预览页必须保持打开。未登录或页面不可达时状态是 `not_connected`。桥接服务校验输入枚举并限制上下文大小。

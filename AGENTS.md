@@ -26,15 +26,14 @@ The plugin bundles its MCP. It does not replace XTApp Studio:
 ```text
 Codex plugin
   -> bundled xtapp_studio MCP
-  -> running local XTApp Studio
+  -> XTApp Studio preview page
   -> Lua Worker / device simulator
 ```
 
-XTApp Studio must already be installed and running (default
-`http://127.0.0.1:5173`). Its preview page must stay open. The MCP never
-receives a Studio token. There is no remote MCP dependency and no fallback
-preview host. `not_connected` is a missing local runtime, not a successful
-run.
+The user must be signed in to XTApp Studio. Open
+`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1` (login required)
+and keep that page open. `not_connected` means the preview page is not
+reachable, not a successful run.
 
 ## Install into Codex
 
@@ -53,9 +52,10 @@ git ls-remote https://github.com/linchuanXu/xtapp-codex-plugin.git main
 
 Require a Codex build that supports `codex plugin marketplace`. If
 `codex plugin marketplace list --json` fails, stop and report that the host
-is too old. If XTApp Studio is not running, ask the user to start their
-installed Studio. Do not invent a download URL, clone path, or install
-script. Do not substitute a remote MCP URL.
+is too old. If the preview page is not open, ask the user to sign in and
+open `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`. Do not
+invent a download URL, clone path, or install script. Do not substitute a
+remote MCP URL.
 
 ### 2. Inspect before mutating
 
@@ -80,20 +80,16 @@ codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
 `alreadyAdded: true` is success. Do not hand-edit Codex configuration or
 copy plugin files into a Codex home.
 
-### 4. Ensure the local Studio runtime
+### 4. Open the official preview page
 
 The plugin registers MCP `xtapp_studio` from `.mcp.json`. Do not run
-`codex mcp login`. Do not guess a localhost port, invent a Studio source
-path, or start a second preview server.
+`codex mcp login`. Do not invent a Studio source path or start a second
+preview server.
 
-If Studio is not already serving `http://127.0.0.1:5173`, ask the user to
-start it. Open or reuse the Codex in-app browser at
-`http://127.0.0.1:5173/studio/preview?preview=1` and keep that page open.
-If the browser supports directory access, ask the user to click
-「连接文件夹」and choose the current Codex worktree. Do not treat folder
-connection as required.
-
-Non-default Studio ports use `XTAPP_STUDIO_CONTROL_URL`. Do not invent one.
+Ask the user to sign in and open or reuse the Codex in-app browser at
+`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`. Keep that page
+open. Local Studio ports use `XTAPP_STUDIO_CONTROL_URL` only as an
+override. Do not invent one.
 
 ### 5. Verify
 
@@ -108,10 +104,10 @@ Required evidence:
 - marketplace name is `xtapp-codex-plugin-github`;
 - no bearer token, API key, or `.env` value is embedded.
 
-If Studio is running, a runtime smoke may additionally call
-`get_xtapp_preview_status`. `not_connected` means the bridge is down.
-Never report that a project is running when the status is `not_connected`,
-`queued`, or `queued_timeout`.
+If the official preview page is open, a runtime smoke may additionally
+call `get_xtapp_preview_status`. `not_connected` means the preview is not
+reachable. Never report that a project is running when the status is
+`not_connected`, `queued`, or `queued_timeout`.
 
 ### 6. Hand back
 
@@ -120,17 +116,17 @@ Report:
 - whether installation was new or already present;
 - installed plugin id and version;
 - that MCP `xtapp_studio` is bundled by the plugin;
-- whether the local Studio preview page was reached;
+- whether the official Studio preview page was reached;
 - that a new Codex task is needed to load the plugin snapshot;
-- whether a preview run was tested or remains pending Studio;
+- whether a preview run was tested or remains pending login/preview;
 - that project files stay on the local machine.
 
 Never report "preview works" when only package installation was verified.
 
 ## Safety boundaries
 
-- Lua execution, asset pipelines, and device simulation belong in the
-  user's installed XTApp Studio.
+- Lua execution, asset pipelines, and device simulation belong in
+  XTApp Studio.
 - Treat `.codex-plugin/plugin.json` and
   `.agents/plugins/marketplace.json` as distribution payloads.
 - Never expose or commit credentials, Codex auth state, plugin caches,

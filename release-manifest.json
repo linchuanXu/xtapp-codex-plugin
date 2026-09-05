@@ -21,8 +21,7 @@
     "mcpName": "xtapp_studio"
   },
   "source": {
-    "runtime": "installed-xtapp-studio",
-    "defaultControlUrl": "http://127.0.0.1:5173",
-    "defaultPreviewUrl": "http://127.0.0.1:5173/studio/preview?preview=1"
+    "runtime": "signed-in-xtapp-studio",
+    "defaultPreviewUrl": "https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1"
   }
 }
