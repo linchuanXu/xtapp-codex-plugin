@@ -30,10 +30,11 @@ Codex plugin
   -> Lua Worker / device simulator
 ```
 
-The user must be signed in to XTApp Studio. Open
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1` (login required)
-and keep that page open. `not_connected` means the preview page is not
-reachable, not a successful run.
+The user must be signed in to XTApp Studio. Call
+`get_xtapp_preview_status` and open its `previewUrl` in the Codex in-app
+browser (login required). That URL includes the session the plugin will
+command. Keep the page open. `not_connected` means the preview page is
+not reachable, not a successful run.
 
 ## Install into Codex
 
@@ -53,9 +54,9 @@ git ls-remote https://github.com/linchuanXu/xtapp-codex-plugin.git main
 Require a Codex build that supports `codex plugin marketplace`. If
 `codex plugin marketplace list --json` fails, stop and report that the host
 is too old. If the preview page is not open, ask the user to sign in and
-open `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`. Do not
-invent a download URL, clone path, or install script. Do not substitute a
-remote MCP URL.
+open the `previewUrl` from `get_xtapp_preview_status`. Do not invent a
+download URL, clone path, or install script. Do not substitute a remote
+MCP URL.
 
 ### 2. Inspect before mutating
 
@@ -87,9 +88,8 @@ The plugin registers MCP `xtapp_studio` from `.mcp.json`. Do not run
 preview server.
 
 Ask the user to sign in and open or reuse the Codex in-app browser at
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`. Keep that page
-open. Local Studio ports use `XTAPP_STUDIO_CONTROL_URL` only as an
-override. Do not invent one.
+the `previewUrl` from `get_xtapp_preview_status`. Keep that page open.
+Do not invent a localhost control URL.
 
 ### 5. Verify
 

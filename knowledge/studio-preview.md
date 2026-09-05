@@ -2,15 +2,15 @@
 
 ## 作用
 
-Studio 是项目和 Lua Worker 的运行 authority。Codex 插件只通过 `/preview/*` 接口排队命令，不读取用户的文件系统，也不执行 shell。
+Studio 是项目和 Lua Worker 的运行 authority。Codex 插件只通过官网 `/preview/*` 接口排队命令，不读取用户的文件系统，也不执行 shell。
 
 ## 启动
 
-登录 XTApp Studio，打开官网预览页（需登录）：
+登录 XTApp Studio，先调用 `get_xtapp_preview_status`，再打开返回的 `previewUrl`（需登录）。该地址带有插件会话，必须保持打开。
+
+官网预览页：
 
 `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`
-
-保持这个页面打开。本机覆盖通过 `XTAPP_STUDIO_CONTROL_URL` 配置。
 
 ## 能力
 
@@ -26,4 +26,4 @@ Studio 是项目和 Lua Worker 的运行 authority。Codex 插件只通过 `/pre
 
 ## 边界
 
-预览页必须保持打开。未登录或页面不可达时状态是 `not_connected`。桥接服务校验输入枚举并限制上下文大小。
+预览页必须保持打开，并且 URL 里的 session 必须与插件一致。未登录或页面不可达时状态是 `not_connected`。桥接服务校验输入枚举并限制上下文大小。

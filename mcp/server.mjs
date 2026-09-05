@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { cp, readFile, readdir, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -199,18 +200,41 @@ server.registerTool('copy_xtapp_store_template', { description: 'Copy a bundled 
   return textResult(`已复制公开模板 ${id} 到 ${relativeDestination}`, { id, destination: target, sourceDir: template.dir })
 })
 
+const OFFICIAL_STUDIO_ORIGIN = 'https://xtapp-ai-dev.xteink.cn'
+let previewSession = ''
+
+function studioOrigin() {
+  return String(process.env.XTAPP_STUDIO_CONTROL_URL || OFFICIAL_STUDIO_ORIGIN).replace(/\/$/, '')
+}
+
+function previewSessionId() {
+  if (!previewSession) previewSession = randomUUID()
+  return previewSession
+}
+
+function previewPageUrl() {
+  return `${studioOrigin()}/studio/preview?preview=1&session=${encodeURIComponent(previewSessionId())}`
+}
+
+function withPreviewMeta(result = {}) {
+  return { ...result, sessionId: result.sessionId || previewSessionId(), previewUrl: previewPageUrl() }
+}
+
 async function bridgeRequest(path, body = {}, method = 'POST') {
-  const base = process.env.XTAPP_STUDIO_CONTROL_URL || 'http://127.0.0.1:5173'
+  const origin = studioOrigin()
+  const sessionId = previewSessionId()
+  const url = new URL(path, `${origin}/`)
+  if (method === 'GET') url.searchParams.set('sessionId', sessionId)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 4000)
   try {
-    const response = await fetch(`${base.replace(/\/$/, '')}${path}`, { method, headers: { 'content-type': 'application/json' }, signal: controller.signal, ...(method === 'GET' ? {} : { body: JSON.stringify(body) }) })
+    const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, signal: controller.signal, ...(method === 'GET' ? {} : { body: JSON.stringify({ ...body, sessionId }) }) })
     if (!response.ok) throw new Error(`Studio preview bridge failed: HTTP ${response.status}`)
-    return response.json()
+    return withPreviewMeta(await response.json())
   } catch (error) {
-    if (error?.name === 'AbortError') return { status: 'not_connected', message: `Studio 响应超时：${base}` }
+    if (error?.name === 'AbortError') return withPreviewMeta({ status: 'not_connected', message: `Studio 响应超时：${origin}` })
     if (error?.cause?.code === 'ECONNREFUSED' || error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNRESET') {
-      return { status: 'not_connected', message: `无法连接本地 Studio：${base}` }
+      return withPreviewMeta({ status: 'not_connected', message: `无法连接 Studio 预览桥：${origin}` })
     }
     throw error
   } finally {
@@ -227,7 +251,7 @@ async function syncProjectSource(projectDir) {
 async function awaitCommand(path, body = {}) {
   const queued = await bridgeRequest(path, body)
   if (!queued?.commandId || queued.status === 'not_connected') return queued
-  const query = `/preview/result?sessionId=${encodeURIComponent(queued.sessionId || '')}&commandId=${encodeURIComponent(queued.commandId)}`
+  const query = `/preview/result?commandId=${encodeURIComponent(queued.commandId)}`
   const deadline = Date.now() + 4000
   while (Date.now() < deadline) {
     const result = await bridgeRequest(query, {}, 'GET')
@@ -266,19 +290,19 @@ function startSourceWatcher(projectDir) {
   return watcher
 }
 
-server.registerTool('run_xtapp_preview', { description: 'Request a preview run and automatically keep the selected worktree synchronized with the local Studio.', inputSchema: { projectDir: z.string().trim().optional(), device: z.enum(['x4_classic', 'x4_pro']).optional() } }, async ({ projectDir, device = 'x4_pro' }) => {
+server.registerTool('run_xtapp_preview', { description: 'Request a preview run on the official Studio page and keep the selected worktree synchronized.', inputSchema: { projectDir: z.string().trim().optional(), device: z.enum(['x4_classic', 'x4_pro']).optional() } }, async ({ projectDir, device = 'x4_pro' }) => {
   const source = projectDir ? await syncProjectSource(projectDir) : null
   if (projectDir) startSourceWatcher(resolve(projectDir))
   const result = await awaitCommand('/preview/run', { projectDir: source?.projectDir || null, revision: source?.revision || null, device })
   return textResult(JSON.stringify(result), { ...result, device, watching: Boolean(projectDir) })
 })
 
-server.registerTool('sync_xtapp_preview_source', { description: 'Read the current Codex worktree source and make it available to the local Studio preview.', inputSchema: { projectDir: z.string().trim() } }, async ({ projectDir }) => {
+server.registerTool('sync_xtapp_preview_source', { description: 'Read the current Codex worktree source and make it available to the official Studio preview.', inputSchema: { projectDir: z.string().trim() } }, async ({ projectDir }) => {
   const result = await syncProjectSource(projectDir)
   return textResult(JSON.stringify(result, null, 2), result)
 })
 
-server.registerTool('watch_xtapp_preview', { description: 'Watch a Codex worktree and automatically synchronize source changes to the local Studio preview.', inputSchema: { projectDir: z.string().trim(), enabled: z.boolean().optional() } }, async ({ projectDir, enabled = true }) => {
+server.registerTool('watch_xtapp_preview', { description: 'Watch a Codex worktree and automatically synchronize source changes to the official Studio preview.', inputSchema: { projectDir: z.string().trim(), enabled: z.boolean().optional() } }, async ({ projectDir, enabled = true }) => {
   const root = resolve(projectDir)
   if (!enabled) return textResult(JSON.stringify({ status: stopSourceWatcher(root) ? 'stopped' : 'not_watching', projectDir: root }), { status: 'stopped', projectDir: root })
   await syncProjectSource(root)
@@ -286,7 +310,7 @@ server.registerTool('watch_xtapp_preview', { description: 'Watch a Codex worktre
   return textResult(`已开始监听 ${root}；Codex 保存 Lua/Manifest 后，Studio 会自动同步源码并刷新预览。`, { status: 'watching', projectDir: root, intervalMs: 1000 })
 })
 
-server.registerTool('get_xtapp_preview_status', { description: 'Read the connection and runtime status of the local Studio preview.', inputSchema: {} }, async () => {
+server.registerTool('get_xtapp_preview_status', { description: 'Read the connection and runtime status of the official Studio preview.', inputSchema: {} }, async () => {
   const result = await bridgeRequest('/preview/status', {}, 'GET')
   return textResult(JSON.stringify(result), result)
 })
@@ -322,7 +346,7 @@ server.registerTool('send_xtapp_preview_touch', { description: 'Send a touch ges
 
 server.registerTool('capture_xtapp_preview', { description: 'Capture the current Studio preview PNG and frame revision.', inputSchema: {} }, async () => {
   const command = await awaitCommand('/preview/capture', {})
-  const screenshot = await bridgeRequest(`/preview/screenshot${command?.sessionId ? `?sessionId=${encodeURIComponent(command.sessionId)}` : ''}`, {}, 'GET')
+  const screenshot = await bridgeRequest('/preview/screenshot', {}, 'GET')
   const result = { ...command, screenshot }
   return textResult(JSON.stringify(result), result)
 })

@@ -37,14 +37,8 @@ Expected plugin identity:
 - MCP: bundled `xtapp_studio` stdio, command `node ./mcp/server.bundle.mjs`
 
 Start a new Codex task after installation so it loads the new plugin
-snapshot. Then open
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1` and keep it open.
-
-Local Studio override only:
-
-```bash
-XTAPP_STUDIO_CONTROL_URL=http://127.0.0.1:5173
-```
+snapshot. Then call `get_xtapp_preview_status` and open the returned
+`previewUrl` (login required). Keep that page open.
 
 ## Published Git marketplace smoke
 

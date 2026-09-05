@@ -37,14 +37,8 @@ codex plugin list --json
 - 版本：`release-manifest.json` 中的值
 - MCP：自带 `xtapp_studio` stdio，命令 `node ./mcp/server.bundle.mjs`
 
-安装后新开一个 Codex 任务，才会加载新的插件快照。然后打开
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1` 并保持打开。
-
-仅在本机覆盖时使用：
-
-```bash
-XTAPP_STUDIO_CONTROL_URL=http://127.0.0.1:5173
-```
+安装后新开一个 Codex 任务，才会加载新的插件快照。然后调用
+`get_xtapp_preview_status`，打开返回的 `previewUrl`（需登录），并保持打开。
 
 ## 已发布 Git marketplace 冒烟
 
