@@ -1,0 +1,20 @@
+{
+  "name": "xtapp-codex-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check mcp/server.mjs && node --check scripts/sync-knowledge.mjs",
+    "build:mcp": "esbuild mcp/server.mjs --bundle --platform=node --format=esm --outfile=mcp/server.bundle.mjs",
+    "sync:knowledge": "node scripts/sync-knowledge.mjs",
+    "sync:catalog": "node scripts/sync-public-catalog.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
