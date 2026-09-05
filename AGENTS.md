@@ -34,7 +34,7 @@ The user must be signed in to XTApp Studio. Call
 `get_xtapp_preview_status` and open its `previewUrl` in the Codex in-app
 browser (login required). That URL includes the session the plugin will
 command. Keep the page open. `not_connected` means the preview page is
-not reachable, not a successful run.
+not reachable or the session does not match, not a successful run.
 
 ## Install into Codex
 

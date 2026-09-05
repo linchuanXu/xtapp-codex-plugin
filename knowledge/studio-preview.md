@@ -2,28 +2,31 @@
 
 ## 作用
 
-Studio 是项目和 Lua Worker 的运行 authority。Codex 插件只通过官网 `/preview/*` 接口排队命令，不读取用户的文件系统，也不执行 shell。
+Studio 是项目和 Lua Worker 的运行 authority。Codex 插件通过官网 `/preview/*` 排队命令。模拟器画面在官网预览页，不在右侧 widget。
+
+`run_xtapp_preview` / `sync_xtapp_preview_source` 会读取用户传入的本机 worktree（Lua、Manifest、data、lang，以及有上限的 `assets/*.xic`），并覆盖官网当前工程。不要说插件不读文件系统。
 
 ## 启动
 
-登录 XTApp Studio，先调用 `get_xtapp_preview_status`，再打开返回的 `previewUrl`（需登录）。该地址带有插件会话，必须保持打开。
+1. 调用 `get_xtapp_preview_status`，打开返回的 `previewUrl`（需登录）。
+2. 该地址必须带插件 session。不要只打开 `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`。
+3. 保持这个页面打开。MCP 重启后 session 会复用本机 `~/.xtapp/codex-preview-session`，同一 URL 仍然有效。
 
-官网预览页：
-
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`
+`not_connected` 表示预览页没开、没登录，或打开的 URL 不是插件返回的那条。
 
 ## 能力
 
-- `run` / `restart`：使用当前 IndexedDB 工程启动或重启 Lua Worker。
-- `input`：模拟 `up/down/left/right/ok/back`；触摸仍由页面中的 Pro 设备画布处理。
+- `run_xtapp_preview`：同步 worktree 后启动预览。若当前状态是 `stopped` 或 `error`，会改走 `restart`，避免假成功。
+- `restart_xtapp_preview`：强制重新拉起 Lua Worker。
+- `sync_xtapp_preview_source`：只同步源码，不启动。
+- `input`：模拟 `up/down/left/right/ok/back`。
+- `tap_xtapp_preview_target`：只在 Lua 声明了 `__testing_interactions` 时有效；默认模板通常没有。坐标点击用 `send_xtapp_preview_touch`，或让用户点画布。
 - `stop`：停止当前 Worker。
-- `/preview/events`：Studio 页面通过 SSE 接收命令，并通过 `/preview/state` 回传状态。
-- `/preview/context`：回传受限的当前 Manifest、Lua 片段和最近运行日志，用于 Codex 联合分析。
+- `capture_xtapp_preview`：截当前模拟器 PNG。
+- `/preview/context`：回传受限 Manifest、Lua 片段和最近日志。
 
-## 诊断流程
+右侧 widget 只报状态，不是模拟器。
 
-遇到“按键不生效”时，先查 `topic=input` 的契约，再调用 `inspect_xtapp_preview_context` 查看当前入口的 `on_input`、Manifest、设备能力和最近日志。若契约没有明确说明，必须标记为未知并请求真实设备验证。
+## 诊断
 
-## 边界
-
-预览页必须保持打开，并且 URL 里的 session 必须与插件一致。未登录或页面不可达时状态是 `not_connected`。桥接服务校验输入枚举并限制上下文大小。
+按键不生效时，先查 `topic=input`，再调用 `inspect_xtapp_preview_context`。不要把 `queued` / `queued_timeout` / `not_connected` 报成运行成功。装完插件后需要新开一个 Codex 任务才会加载 MCP。

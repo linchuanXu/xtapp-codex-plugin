@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { cp, readFile, readdir, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -7,6 +6,7 @@ import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@model
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
+import { loadOrCreatePreviewSession, previewRunPath } from './previewSession.mjs'
 import { readProjectSnapshot } from './projectSnapshot.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -201,14 +201,13 @@ server.registerTool('copy_xtapp_store_template', { description: 'Copy a bundled 
 })
 
 const OFFICIAL_STUDIO_ORIGIN = 'https://xtapp-ai-dev.xteink.cn'
-let previewSession = ''
+const previewSession = await loadOrCreatePreviewSession()
 
 function studioOrigin() {
   return String(process.env.XTAPP_STUDIO_CONTROL_URL || OFFICIAL_STUDIO_ORIGIN).replace(/\/$/, '')
 }
 
 function previewSessionId() {
-  if (!previewSession) previewSession = randomUUID()
   return previewSession
 }
 
@@ -293,8 +292,10 @@ function startSourceWatcher(projectDir) {
 server.registerTool('run_xtapp_preview', { description: 'Request a preview run on the official Studio page and keep the selected worktree synchronized.', inputSchema: { projectDir: z.string().trim().optional(), device: z.enum(['x4_classic', 'x4_pro']).optional() } }, async ({ projectDir, device = 'x4_pro' }) => {
   const source = projectDir ? await syncProjectSource(projectDir) : null
   if (projectDir) startSourceWatcher(resolve(projectDir))
-  const result = await awaitCommand('/preview/run', { projectDir: source?.projectDir || null, revision: source?.revision || null, device })
-  return textResult(JSON.stringify(result), { ...result, device, watching: Boolean(projectDir) })
+  const status = await bridgeRequest('/preview/status', {}, 'GET')
+  const path = previewRunPath(status.status)
+  const result = await awaitCommand(path, { projectDir: source?.projectDir || null, revision: source?.revision || null, device })
+  return textResult(JSON.stringify(result), { ...result, device, watching: Boolean(projectDir), commandPath: path })
 })
 
 server.registerTool('sync_xtapp_preview_source', { description: 'Read the current Codex worktree source and make it available to the official Studio preview.', inputSchema: { projectDir: z.string().trim() } }, async ({ projectDir }) => {

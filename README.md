@@ -31,10 +31,11 @@ Codex plugin
 ```
 
 Users install this plugin, sign in to XTApp Studio, and keep the official
-preview page open. Open
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1` (login required).
-A preview status of `not_connected` means that page is not reachable; it is
-not success.
+preview page open. Call `get_xtapp_preview_status` and open the returned
+`previewUrl` (login required). That URL includes the plugin session. Do not
+open the bare `/studio/preview?preview=1` page. A preview status of
+`not_connected` means that page is not reachable or the session does not
+match; it is not success.
 
 ## Current package
 
@@ -47,7 +48,7 @@ not success.
 - Host: Codex only
 - MCP: bundled `xtapp_studio` stdio (`node ./mcp/server.bundle.mjs`)
 - Runtime: signed-in XTApp Studio
-- Default preview: `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`
+- Default preview: official Studio host; always use the `previewUrl` from `get_xtapp_preview_status`
 - Skills: `xtapp-contracts`, `xtapp-open-preview`
 - Public knowledge: `knowledge/index.json` (schema 2, 22 entries)
 - Public catalog: `catalog/index.json` (107 reviewed text templates)
@@ -69,10 +70,10 @@ Studio source path. Verify:
 codex plugin list --json
 ```
 
-If the preview is not open, ask the user to sign in and open
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1` in the Codex
-in-app browser. Keep that page open. Start a new Codex task after plugin
-installation, then ask Codex to run the current XTApp project.
+If the preview is not open, ask the user to sign in and open the
+`previewUrl` from `get_xtapp_preview_status` in the Codex in-app browser.
+Keep that page open. Start a new Codex task after plugin installation,
+then ask Codex to run the current XTApp project.
 
 See [docs/INSTALL_CODEX.md](docs/INSTALL_CODEX.md) for isolated validation
 and uninstall, or the [Chinese install guide](docs/INSTALL_CODEX.zh-CN.md).

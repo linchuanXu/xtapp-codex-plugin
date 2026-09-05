@@ -26766,10 +26766,9 @@ var require_dist = __commonJS({
 });
 
 // mcp/server.mjs
-import { randomUUID } from "node:crypto";
-import { cp, readFile as readFile2, readdir as readdir2, stat as stat2 } from "node:fs/promises";
+import { cp, readFile as readFile3, readdir as readdir2, stat as stat2 } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, join as join2, resolve as resolve2 } from "node:path";
+import { dirname as dirname2, join as join3, resolve as resolve2 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // node_modules/zod/v3/helpers/util.js
@@ -36494,10 +36493,36 @@ var StdioServerTransport = class {
   }
 };
 
+// mcp/previewSession.mjs
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+var SESSION_ID = /^[A-Za-z0-9:_-]{8,160}$/;
+function defaultPreviewSessionPath() {
+  const override = String(process.env.XTAPP_PREVIEW_SESSION_FILE || "").trim();
+  return override || join(homedir(), ".xtapp", "codex-preview-session");
+}
+async function loadOrCreatePreviewSession(filePath = defaultPreviewSessionPath()) {
+  try {
+    const existing = (await readFile(filePath, "utf8")).trim();
+    if (SESSION_ID.test(existing)) return existing;
+  } catch {
+  }
+  const sessionId = randomUUID();
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${sessionId}
+`, "utf8");
+  return sessionId;
+}
+function previewRunPath(status) {
+  return status === "stopped" || status === "error" ? "/preview/restart" : "/preview/run";
+}
+
 // mcp/projectSnapshot.mjs
 import { createHash } from "node:crypto";
-import { readFile, readdir, realpath, stat } from "node:fs/promises";
-import { basename, join, relative, resolve, sep } from "node:path";
+import { readFile as readFile2, readdir, realpath, stat } from "node:fs/promises";
+import { basename, join as join2, relative, resolve, sep } from "node:path";
 var MAX_FILES = 400;
 var MAX_FILE_BYTES = 256 * 1024;
 var MAX_TOTAL_BYTES = 4 * 1024 * 1024;
@@ -36529,10 +36554,10 @@ async function collectFiles(root) {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        if (!IGNORED_DIRS.has(entry.name)) await walk(join(dir, entry.name));
+        if (!IGNORED_DIRS.has(entry.name)) await walk(join2(dir, entry.name));
         continue;
       }
-      const absolute = join(dir, entry.name);
+      const absolute = join2(dir, entry.name);
       const path = safeRelativePath(relative(root, absolute));
       if (!path) continue;
       if (TEXT_FILE.test(path) && Object.keys(files).length >= MAX_FILES) {
@@ -36544,7 +36569,7 @@ async function collectFiles(root) {
         warnings.push(`${path} \u662F\u8D8A\u754C\u94FE\u63A5\uFF0C\u5DF2\u8DF3\u8FC7`);
         continue;
       }
-      const bytes = await readFile(target);
+      const bytes = await readFile2(target);
       if (ASSET_FILE.test(path)) {
         if (assets.length >= MAX_ASSETS) {
           warnings.push(`\u7D20\u6750\u8D85\u8FC7 ${MAX_ASSETS} \u4E2A\uFF0C\u5DF2\u622A\u65AD`);
@@ -36609,11 +36634,11 @@ async function readProjectSnapshot(projectDir) {
 }
 
 // mcp/server.mjs
-var ROOT = resolve2(dirname(fileURLToPath(import.meta.url)), "..");
+var ROOT = resolve2(dirname2(fileURLToPath(import.meta.url)), "..");
 var CONTRACT_DIR = process.env.XTAPP_CONTRACT_DIR ? resolve2(process.env.XTAPP_CONTRACT_DIR) : null;
-var STORE_DIR = process.env.XTAPP_CATALOG_SOURCE_DIR ? resolve2(process.env.XTAPP_CATALOG_SOURCE_DIR) : join2(ROOT, "catalog", "templates");
-var CATALOG_INDEX = join2(ROOT, "catalog", "index.json");
-var KNOWLEDGE_INDEX = join2(ROOT, "knowledge", "index.json");
+var STORE_DIR = process.env.XTAPP_CATALOG_SOURCE_DIR ? resolve2(process.env.XTAPP_CATALOG_SOURCE_DIR) : join3(ROOT, "catalog", "templates");
+var CATALOG_INDEX = join3(ROOT, "catalog", "index.json");
+var KNOWLEDGE_INDEX = join3(ROOT, "knowledge", "index.json");
 var WIDGET_URI = "ui://widget/xtapp/studio.html";
 var sourceWatchers = /* @__PURE__ */ new Map();
 var server = new McpServer({ name: "xtapp-studio", version: "0.1.0" }, {
@@ -36628,7 +36653,7 @@ function safeAppId(value) {
   return id;
 }
 async function readJson(path) {
-  return JSON.parse(await readFile2(path, "utf8"));
+  return JSON.parse(await readFile3(path, "utf8"));
 }
 async function publicApps() {
   if (!process.env.XTAPP_CATALOG_SOURCE_DIR && existsSync(CATALOG_INDEX)) return readJson(CATALOG_INDEX);
@@ -36637,18 +36662,18 @@ async function publicApps() {
   const result = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const dir = join2(STORE_DIR, entry.name);
-    const manifestPath = join2(dir, "manifest.json");
+    const dir = join3(STORE_DIR, entry.name);
+    const manifestPath = join3(dir, "manifest.json");
     if (!existsSync(manifestPath)) continue;
     try {
       const manifest = await readJson(manifestPath);
-      const readmePath = join2(dir, "README.md");
+      const readmePath = join3(dir, "README.md");
       result.push({
         id: entry.name,
         appId: manifest.app_id || entry.name,
         name: manifest.display_name || manifest.name || entry.name,
         version: manifest.version || null,
-        description: existsSync(readmePath) ? (await readFile2(readmePath, "utf8")).split("\n").find(Boolean) || "" : ""
+        description: existsSync(readmePath) ? (await readFile3(readmePath, "utf8")).split("\n").find(Boolean) || "" : ""
       });
     } catch {
     }
@@ -36656,16 +36681,16 @@ async function publicApps() {
   return result.sort((a, b) => a.id.localeCompare(b.id));
 }
 async function templateFiles(id) {
-  const dir = join2(STORE_DIR, safeAppId(id));
+  const dir = join3(STORE_DIR, safeAppId(id));
   const info = await stat2(dir).catch(() => null);
   if (!info?.isDirectory()) throw new Error(`\u516C\u5F00\u6A21\u677F\u4E0D\u5B58\u5728\uFF1A${id}`);
   const files = {};
   const walk = async (current, prefix = "") => {
     for (const entry of await readdir2(current, { withFileTypes: true })) {
-      const relative2 = join2(prefix, entry.name);
+      const relative2 = join3(prefix, entry.name);
       if (entry.name === "assets" || entry.name === "raw" || entry.name.endsWith(".xic")) continue;
-      if (entry.isDirectory()) await walk(join2(current, entry.name), relative2);
-      else if (/\.(lua|json|md|txt|tsv)$/i.test(entry.name)) files[relative2] = await readFile2(join2(current, entry.name), "utf8");
+      if (entry.isDirectory()) await walk(join3(current, entry.name), relative2);
+      else if (/\.(lua|json|md|txt|tsv)$/i.test(entry.name)) files[relative2] = await readFile3(join3(current, entry.name), "utf8");
     }
   };
   await walk(dir);
@@ -36674,13 +36699,13 @@ async function templateFiles(id) {
 function contractCandidates() {
   if (!CONTRACT_DIR) return [];
   return [
-    join2(CONTRACT_DIR, "SPEC.md"),
-    join2(CONTRACT_DIR, "README.md"),
-    join2(CONTRACT_DIR, "api", "runtime.md"),
-    join2(CONTRACT_DIR, "api", "input.md"),
-    join2(CONTRACT_DIR, "api", "graphics.md"),
-    join2(CONTRACT_DIR, "api", "ui-components.md"),
-    join2(CONTRACT_DIR, "api", "manifest.md")
+    join3(CONTRACT_DIR, "SPEC.md"),
+    join3(CONTRACT_DIR, "README.md"),
+    join3(CONTRACT_DIR, "api", "runtime.md"),
+    join3(CONTRACT_DIR, "api", "input.md"),
+    join3(CONTRACT_DIR, "api", "graphics.md"),
+    join3(CONTRACT_DIR, "api", "ui-components.md"),
+    join3(CONTRACT_DIR, "api", "manifest.md")
   ];
 }
 async function contractSearch(query, limit = 6, topicFilter = "") {
@@ -36690,7 +36715,7 @@ async function contractSearch(query, limit = 6, topicFilter = "") {
   const rows = [];
   for (const path of contractCandidates()) {
     if (!existsSync(path)) continue;
-    const content = await readFile2(path, "utf8");
+    const content = await readFile3(path, "utf8");
     const lines = content.split("\n");
     lines.forEach((line, index) => {
       const lower = line.toLowerCase();
@@ -36750,7 +36775,7 @@ N3(server, "xtapp-studio-widget", WIDGET_URI, {
     "openai/widgetPrefersBorder": true,
     "openai/widgetCSP": { connect_domains: [], resource_domains: ["data:"] }
   }
-}, async () => ({ contents: [{ uri: WIDGET_URI, mimeType: p, text: await readFile2(join2(ROOT, "widget", "index.html"), "utf8") }] }));
+}, async () => ({ contents: [{ uri: WIDGET_URI, mimeType: p, text: await readFile3(join3(ROOT, "widget", "index.html"), "utf8") }] }));
 K3(server, "render_xtapp_studio_widget", {
   title: "Render XTApp Studio Preview",
   description: "Open or refresh the native right-side XTApp Studio preview widget for the active project.",
@@ -36782,12 +36807,11 @@ server.registerTool("copy_xtapp_store_template", { description: "Copy a bundled 
   return textResult(`\u5DF2\u590D\u5236\u516C\u5F00\u6A21\u677F ${id} \u5230 ${relativeDestination}`, { id, destination: target, sourceDir: template.dir });
 });
 var OFFICIAL_STUDIO_ORIGIN = "https://xtapp-ai-dev.xteink.cn";
-var previewSession = "";
+var previewSession = await loadOrCreatePreviewSession();
 function studioOrigin() {
   return String(process.env.XTAPP_STUDIO_CONTROL_URL || OFFICIAL_STUDIO_ORIGIN).replace(/\/$/, "");
 }
 function previewSessionId() {
-  if (!previewSession) previewSession = randomUUID();
   return previewSession;
 }
 function previewPageUrl() {
@@ -36865,8 +36889,10 @@ function startSourceWatcher(projectDir) {
 server.registerTool("run_xtapp_preview", { description: "Request a preview run on the official Studio page and keep the selected worktree synchronized.", inputSchema: { projectDir: external_exports.string().trim().optional(), device: external_exports.enum(["x4_classic", "x4_pro"]).optional() } }, async ({ projectDir, device = "x4_pro" }) => {
   const source = projectDir ? await syncProjectSource(projectDir) : null;
   if (projectDir) startSourceWatcher(resolve2(projectDir));
-  const result = await awaitCommand("/preview/run", { projectDir: source?.projectDir || null, revision: source?.revision || null, device });
-  return textResult(JSON.stringify(result), { ...result, device, watching: Boolean(projectDir) });
+  const status = await bridgeRequest("/preview/status", {}, "GET");
+  const path = previewRunPath(status.status);
+  const result = await awaitCommand(path, { projectDir: source?.projectDir || null, revision: source?.revision || null, device });
+  return textResult(JSON.stringify(result), { ...result, device, watching: Boolean(projectDir), commandPath: path });
 });
 server.registerTool("sync_xtapp_preview_source", { description: "Read the current Codex worktree source and make it available to the official Studio preview.", inputSchema: { projectDir: external_exports.string().trim() } }, async ({ projectDir }) => {
   const result = await syncProjectSource(projectDir);

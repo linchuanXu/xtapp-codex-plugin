@@ -8,8 +8,8 @@ English · [中文](INSTALL_CODEX.zh-CN.md)
 - Signed-in XTApp Studio
 - Plugin selector `xtapp-codex-plugin@xtapp-codex-plugin-github`
 - Bundled MCP identity `xtapp_studio`
-- Preview page `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`
-  (login required)
+- Preview page from `get_xtapp_preview_status.previewUrl` (login required,
+  includes session)
 - Keep that official preview page open
 
 ## Normal Git marketplace install
@@ -19,9 +19,9 @@ codex plugin marketplace add linchuanXu/xtapp-codex-plugin --ref main --json
 codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
 ```
 
-If the preview is not open, ask the user to sign in and open
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`. Do not invent a
-download URL, clone path, or install script.
+If the preview is not open, ask the user to sign in and open the
+`previewUrl` from `get_xtapp_preview_status`. Do not invent a download
+URL, clone path, or install script.
 
 The plugin has a local `.mcp.json` and no remote MCP endpoint.
 
@@ -55,11 +55,11 @@ CODEX_HOME="$XTAPP_CODEX_PLUGIN_TEST_HOME" codex plugin list --json
 ```
 
 Plugin installation alone does not open the preview. For a full smoke,
-sign in and open
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`, then use the
-plugin tools against that page. `get_xtapp_preview_status` must be read
-as written. An unauthenticated or unreachable preview must stay
-`not_connected`, not switch to a guessed host.
+sign in and open the `previewUrl` from `get_xtapp_preview_status` (it
+includes the session), then use the plugin tools against that page.
+`get_xtapp_preview_status` must be read as written. An unauthenticated,
+closed, or mismatched-session preview must stay `not_connected`, not
+switch to a guessed host.
 
 Delete only the exact temporary roots created by the smoke.
 
@@ -96,7 +96,7 @@ Report all of:
 Do not claim a run succeeded unless the bridge result is `complete`.
 `queued` and `queued_timeout` mean Studio accepted a command but has not
 returned an execution result. `not_connected` means the preview page is
-not reachable.
+not reachable or the URL session does not match.
 
 Source sync reads only the current worktree paths the user passed in.
 It stays on the local machine. Binary assets outside the bounded `.xic`

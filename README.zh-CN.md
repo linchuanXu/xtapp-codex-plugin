@@ -28,11 +28,10 @@ Codex 插件
   -> Lua Worker / X4 Classic / X4 Pro 模拟器
 ```
 
-安装插件后，登录 XTApp Studio，并在 Codex 内置浏览器打开官网预览页（需登录）：
-
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`
-
-保持这个页面打开。预览状态 `not_connected` 表示预览页连不上，不是成功。
+安装插件后，登录 XTApp Studio，调用 `get_xtapp_preview_status`，并在 Codex
+内置浏览器打开返回的 `previewUrl`（需登录，URL 带 session）。不要只打开
+`/studio/preview?preview=1`。保持这个页面打开。预览状态 `not_connected`
+表示预览页连不上或 session 不一致，不是成功。
 
 ## 当前包
 
@@ -45,7 +44,7 @@ Codex 插件
 - 宿主：仅 Codex
 - MCP：自带 `xtapp_studio` stdio（`node ./mcp/server.bundle.mjs`）
 - 运行时：已登录的 XTApp Studio
-- 默认预览：`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`
+- 默认预览：以 `get_xtapp_preview_status` 返回的 `previewUrl` 为准
 - Skills：`xtapp-contracts`、`xtapp-open-preview`
 - 公开知识：`knowledge/index.json`（schema 2，22 条）
 - 公开目录：`catalog/index.json`（107 个审核过的文本模板）
@@ -65,9 +64,9 @@ codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
 codex plugin list --json
 ```
 
-如果预览页没有打开，请用户登录后打开
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`，并保持页面打开。
-安装后新开一个 Codex 任务，再让 Codex 运行当前 XTApp 项目。
+如果预览页没有打开，请用户登录后打开 `get_xtapp_preview_status` 返回的
+`previewUrl`，并保持页面打开。安装后新开一个 Codex 任务，再让 Codex 运行
+当前 XTApp 项目。
 
 隔离验证和卸载见 [docs/INSTALL_CODEX.zh-CN.md](docs/INSTALL_CODEX.zh-CN.md)。
 包身份在 [`release-manifest.json`](release-manifest.json)。

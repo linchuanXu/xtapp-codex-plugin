@@ -10,7 +10,7 @@
 - 已登录的 XTApp Studio
 - 插件选择器 `xtapp-codex-plugin@xtapp-codex-plugin-github`
 - 自带 MCP 名称 `xtapp_studio`
-- 预览页 `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`（需登录）
+- 预览页以 `get_xtapp_preview_status` 返回的 `previewUrl` 为准（需登录，带 session）
 - 保持官网预览页打开
 
 ## 常规 Git marketplace 安装
@@ -20,9 +20,8 @@ codex plugin marketplace add linchuanXu/xtapp-codex-plugin --ref main --json
 codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
 ```
 
-如果预览页没有打开，请用户登录后打开
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`。不要编造下载地址、
-clone 路径或安装脚本。
+如果预览页没有打开，请用户登录后打开 `get_xtapp_preview_status` 返回的
+`previewUrl`。不要编造下载地址、clone 路径或安装脚本。
 
 插件带有本地 `.mcp.json`，没有远程 MCP。
 
@@ -54,9 +53,9 @@ CODEX_HOME="$XTAPP_CODEX_PLUGIN_TEST_HOME" codex plugin list --json
 ```
 
 只安装插件不会打开预览。完整冒烟需要先登录，打开
-`https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`，再对这个页面调用
-插件工具。`get_xtapp_preview_status` 按返回值原样阅读。未登录或连不上时必须
-保持 `not_connected`，不能改去猜另一个主机。
+`get_xtapp_preview_status` 返回的 `previewUrl`（带 session），再对这个页面调用
+插件工具。`get_xtapp_preview_status` 按返回值原样阅读。未登录、页没开或
+session 不一致时必须保持 `not_connected`，不能改去猜另一个主机。
 
 只删除这次冒烟创建的临时目录。
 
@@ -90,7 +89,7 @@ CODEX_HOME="$XTAPP_CODEX_PLUGIN_TEST_HOME" codex plugin list --json
 ## 预览约定
 
 只有桥接结果是 `complete` 才能说运行成功。`queued` 和 `queued_timeout` 表示
-Studio 已接收命令，但还没返回执行结果。`not_connected` 表示预览页连不上。
+Studio 已接收命令，但还没返回执行结果。`not_connected` 表示预览页连不上，或 URL 里的 session 对不上。
 
 源码同步只读取用户传入的当前工作区路径，留在本机。快照范围以外的二进制素材
 仍由 Studio 的素材管线管理。
