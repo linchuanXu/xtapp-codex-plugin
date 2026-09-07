@@ -70,6 +70,9 @@ codex plugin marketplace list --json
 codex plugin list --json
 ```
 
+If the user asks to update the XTApp plugin, or says「升级 XTApp 插件」,
+follow this upgrade path. Do not invent a download URL.
+
 If marketplace `xtapp-codex-plugin-github` points at a different source,
 stop and report the name collision. Never remove or overwrite unrelated
 marketplaces, plugins, MCP servers, or auth state.

@@ -6,7 +6,7 @@ import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@model
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { describePreviewReady, displayNameFromManifest, previewCommandWaitMs, requireProjectDir } from './previewReady.mjs'
+import { PLUGIN_VERSION, describePreviewReady, displayNameFromManifest, previewCommandWaitMs, requireProjectDir } from './previewReady.mjs'
 import { loadOrCreatePreviewSession, previewRunPath } from './previewSession.mjs'
 import { readProjectSnapshot } from './projectSnapshot.mjs'
 
@@ -18,7 +18,7 @@ const KNOWLEDGE_INDEX = join(ROOT, 'knowledge', 'index.json')
 const WIDGET_URI = 'ui://widget/xtapp/studio.html'
 const sourceWatchers = new Map()
 
-const server = new McpServer({ name: 'xtapp-studio', version: '0.1.1' }, {
+const server = new McpServer({ name: 'xtapp-studio', version: PLUGIN_VERSION }, {
   instructions: 'Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates.'
 })
 
@@ -228,7 +228,7 @@ async function bridgeRequest(path, body = {}, method = 'POST') {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 4000)
   try {
-    const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, signal: controller.signal, ...(method === 'GET' ? {} : { body: JSON.stringify({ ...body, sessionId }) }) })
+    const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, signal: controller.signal, ...(method === 'GET' ? {} : { body: JSON.stringify({ ...body, sessionId, pluginVersion: PLUGIN_VERSION }) }) })
     if (!response.ok) throw new Error(`Studio preview bridge failed: HTTP ${response.status}`)
     return withPreviewMeta(await response.json())
   } catch (error) {

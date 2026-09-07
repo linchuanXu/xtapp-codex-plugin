@@ -36494,6 +36494,7 @@ var StdioServerTransport = class {
 };
 
 // mcp/previewReady.mjs
+var PLUGIN_VERSION = "0.1.2";
 var PREVIEW_RUN_WAIT_MS = 18e3;
 var PREVIEW_QUICK_WAIT_MS = 4e3;
 function requireProjectDir(projectDir) {
@@ -36713,7 +36714,7 @@ var CATALOG_INDEX = join3(ROOT, "catalog", "index.json");
 var KNOWLEDGE_INDEX = join3(ROOT, "knowledge", "index.json");
 var WIDGET_URI = "ui://widget/xtapp/studio.html";
 var sourceWatchers = /* @__PURE__ */ new Map();
-var server = new McpServer({ name: "xtapp-studio", version: "0.1.1" }, {
+var server = new McpServer({ name: "xtapp-studio", version: PLUGIN_VERSION }, {
   instructions: "Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates."
 });
 function textResult(text, details = {}) {
@@ -36900,7 +36901,7 @@ async function bridgeRequest(path, body = {}, method = "POST") {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4e3);
   try {
-    const response = await fetch(url2, { method, headers: { "content-type": "application/json" }, signal: controller.signal, ...method === "GET" ? {} : { body: JSON.stringify({ ...body, sessionId }) } });
+    const response = await fetch(url2, { method, headers: { "content-type": "application/json" }, signal: controller.signal, ...method === "GET" ? {} : { body: JSON.stringify({ ...body, sessionId, pluginVersion: PLUGIN_VERSION }) } });
     if (!response.ok) throw new Error(`Studio preview bridge failed: HTTP ${response.status}`);
     return withPreviewMeta(await response.json());
   } catch (error61) {

@@ -41,7 +41,7 @@ worktree 新建或复用独立项目，不会覆盖用户其他工程。
 - Plugin：`xtapp-codex-plugin`
 - 显示名：`XTApp Studio`
 - 稳定选择器：`xtapp-codex-plugin@xtapp-codex-plugin-github`
-- 插件版本：`0.1.1`
+- 插件版本：`0.1.2`
 - 分发：从 `main` 发布的 Git marketplace
 - 宿主：仅 Codex
 - MCP：自带 `xtapp_studio` stdio（`node ./mcp/server.bundle.mjs`）
