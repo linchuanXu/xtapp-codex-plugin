@@ -30,11 +30,16 @@ Codex plugin
   -> Lua Worker / device simulator
 ```
 
-The user must be signed in to XTApp Studio. Call
-`get_xtapp_preview_status` and open its `previewUrl` in the Codex in-app
-browser (login required). That URL includes the session the plugin will
-command. Keep the page open. `not_connected` means the preview page is
-not reachable or the session does not match, not a successful run.
+The user writes locally and previews on one official webpage. Call
+`run_xtapp_preview` with the absolute current worktree `projectDir`.
+Give the exact `previewUrl`. If a login page appears, the user logs in
+and returns to that URL. Keep it open. The widget is not the simulator.
+`need_login_or_open_page` / `not_connected` means the page is not
+reachable or the session does not match, not a successful run. After
+code changes, call `run_xtapp_preview` again; do not assume the watcher
+survived. Official Studio may already have another project open; sync
+creates or reuses a Codex project for this worktree and must not
+overwrite the user's other apps.
 
 ## Install into Codex
 
@@ -87,9 +92,12 @@ The plugin registers MCP `xtapp_studio` from `.mcp.json`. Do not run
 `codex mcp login`. Do not invent a Studio source path or start a second
 preview server.
 
-Ask the user to sign in and open or reuse the Codex in-app browser at
-the `previewUrl` from `get_xtapp_preview_status`. Keep that page open.
-Do not invent a localhost control URL.
+Give the user the exact `previewUrl` from `run_xtapp_preview` or
+`get_xtapp_preview_status`. Ask them to open it; if login appears, log
+in and return to that URL. Keep the page open. After they confirm, poll
+status. If it is still disconnected, stop and give the same URL again.
+Do not invent a localhost control URL. Start a new Codex task after
+plugin install before preview.
 
 ### 5. Verify
 

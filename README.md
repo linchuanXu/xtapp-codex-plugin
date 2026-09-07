@@ -30,12 +30,14 @@ Codex plugin
   -> Lua Worker / X4 Classic / X4 Pro simulator
 ```
 
-Users install this plugin, sign in to XTApp Studio, and keep the official
-preview page open. Call `get_xtapp_preview_status` and open the returned
+Users write locally, then open one official webpage to preview. Call
+`run_xtapp_preview` with the current worktree path and give the returned
 `previewUrl` (login required). That URL includes the plugin session. Do not
-open the bare `/studio/preview?preview=1` page. A preview status of
-`not_connected` means that page is not reachable or the session does not
-match; it is not success.
+open the bare `/studio/preview?preview=1` page. If login appears, log in and
+return to the same URL. `need_login_or_open_page` / `not_connected` means
+that page is not reachable or the session does not match; it is not success.
+The official page may already have another project open; sync creates or
+reuses a Codex project for this worktree instead of overwriting it.
 
 ## Current package
 
@@ -70,10 +72,10 @@ Studio source path. Verify:
 codex plugin list --json
 ```
 
-If the preview is not open, ask the user to sign in and open the
-`previewUrl` from `get_xtapp_preview_status` in the Codex in-app browser.
-Keep that page open. Start a new Codex task after plugin installation,
-then ask Codex to run the current XTApp project.
+If the preview is not open, give the user the exact `previewUrl` and ask
+them to open it. If a login page appears, they should log in and return
+to that URL. Keep it open. Start a new Codex task after plugin
+installation, then ask Codex to preview the current worktree.
 
 See [docs/INSTALL_CODEX.md](docs/INSTALL_CODEX.md) for isolated validation
 and uninstall, or the [Chinese install guide](docs/INSTALL_CODEX.zh-CN.md).

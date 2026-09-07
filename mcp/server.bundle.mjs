@@ -36493,6 +36493,78 @@ var StdioServerTransport = class {
   }
 };
 
+// mcp/previewReady.mjs
+var PREVIEW_RUN_WAIT_MS = 18e3;
+var PREVIEW_QUICK_WAIT_MS = 4e3;
+function requireProjectDir(projectDir) {
+  const dir = String(projectDir || "").trim();
+  if (!dir) throw new Error("\u5FC5\u987B\u63D0\u4F9B\u5F53\u524D worktree \u7684\u7EDD\u5BF9\u8DEF\u5F84 projectDir\uFF0C\u4E0D\u80FD\u9884\u89C8\u5B98\u7F51\u91CC\u5DF2\u7ECF\u6253\u5F00\u7684\u5176\u4ED6\u9879\u76EE");
+  return dir;
+}
+function previewCommandWaitMs(path) {
+  return path === "/preview/run" || path === "/preview/restart" ? PREVIEW_RUN_WAIT_MS : PREVIEW_QUICK_WAIT_MS;
+}
+function displayNameFromManifest(manifest, fallback = "") {
+  return String(manifest?.display_name || fallback || "").trim();
+}
+function describePreviewReady({
+  connectedStatus = "",
+  commandStatus = "",
+  previewUrl = "",
+  displayName = "",
+  message = ""
+} = {}) {
+  const name = String(displayName || "").trim();
+  const url2 = String(previewUrl || "").trim();
+  const named = name ? `\u300C${name}\u300D` : "\u5F53\u524D\u9879\u76EE";
+  if (connectedStatus === "not_connected" || commandStatus === "not_connected") {
+    return {
+      userStatus: "need_login_or_open_page",
+      displayName: name || null,
+      previewUrl: url2,
+      message: `\u8BF7\u6253\u5F00\u8FD9\u4E2A\u9884\u89C8\u9875\u3002\u5982\u679C\u51FA\u73B0\u767B\u5F55\u9875\uFF0C\u5148\u767B\u5F55\uFF0C\u518D\u56DE\u5230\u8FD9\u4E2A\u5730\u5740\uFF0C\u5E76\u4FDD\u6301\u6253\u5F00\uFF1A${url2}`
+    };
+  }
+  if (commandStatus === "queued_timeout") {
+    return {
+      userStatus: "timeout",
+      displayName: name || null,
+      previewUrl: url2,
+      message: message || "\u5B98\u7F51\u5DF2\u6536\u5230\u542F\u52A8\u8BF7\u6C42\uFF0C\u4F46\u9884\u89C8\u8FD8\u6CA1\u8DD1\u8D77\u6765\u3002\u8BF7\u786E\u8BA4\u9884\u89C8\u9875\u4ECD\u6253\u5F00\u7740\u540C\u4E00\u6761\u94FE\u63A5\uFF0C\u7136\u540E\u91CD\u8BD5\u3002"
+    };
+  }
+  if (commandStatus === "error" || connectedStatus === "error") {
+    return {
+      userStatus: "error",
+      displayName: name || null,
+      previewUrl: url2,
+      message: message || `${named}\u9884\u89C8\u542F\u52A8\u5931\u8D25\u3002`
+    };
+  }
+  if (connectedStatus === "running" || connectedStatus === "loading" || commandStatus === "complete") {
+    return {
+      userStatus: "running",
+      displayName: name || null,
+      previewUrl: url2,
+      message: `${named}\u5DF2\u5728\u5B98\u7F51\u9884\u89C8\u9875\u8FD0\u884C\u3002\u6A21\u62DF\u5668\u5728\u7F51\u9875\u91CC\uFF0C\u4E0D\u5728\u53F3\u4FA7\u9762\u677F\u3002`
+    };
+  }
+  if (connectedStatus === "stopped") {
+    return {
+      userStatus: "stopped",
+      displayName: name || null,
+      previewUrl: url2,
+      message: `${named}\u9884\u89C8\u5DF2\u505C\u6B62\u3002\u53EF\u518D\u6B21\u540C\u6B65\u5F53\u524D worktree \u5E76\u542F\u52A8\u3002`
+    };
+  }
+  return {
+    userStatus: "page_open",
+    displayName: name || null,
+    previewUrl: url2,
+    message: "\u9884\u89C8\u9875\u5DF2\u6253\u5F00\u3002\u6A21\u62DF\u5668\u5728\u7F51\u9875\u91CC\u3002\u540C\u6B65\u5F53\u524D worktree \u540E\u624D\u4F1A\u663E\u793A\u8FD9\u4E2A\u672C\u5730\u9879\u76EE\u3002"
+  };
+}
+
 // mcp/previewSession.mjs
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -36642,7 +36714,7 @@ var KNOWLEDGE_INDEX = join3(ROOT, "knowledge", "index.json");
 var WIDGET_URI = "ui://widget/xtapp/studio.html";
 var sourceWatchers = /* @__PURE__ */ new Map();
 var server = new McpServer({ name: "xtapp-studio", version: "0.1.0" }, {
-  instructions: "Use XTApp public contract knowledge before guessing APIs. Use the preview tool after project changes. Public store tools inspect and copy only the checked-in standard app templates."
+  instructions: "Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates."
 });
 function textResult(text, details = {}) {
   return { content: [{ type: "text", text }], structuredContent: details };
@@ -36846,17 +36918,47 @@ async function syncProjectSource(projectDir) {
   const result = await bridgeRequest("/preview/source", snapshot);
   return { ...result, projectDir: snapshot.projectDir, revision: snapshot.revision, warnings: snapshot.warnings, fileCount: snapshot.fileCount, assetCount: snapshot.assetCount, assetBytes: snapshot.assetBytes };
 }
-async function awaitCommand(path, body = {}) {
+async function awaitCommand(path, body = {}, waitMs = previewCommandWaitMs(path)) {
   const queued = await bridgeRequest(path, body);
   if (!queued?.commandId || queued.status === "not_connected") return queued;
   const query = `/preview/result?commandId=${encodeURIComponent(queued.commandId)}`;
-  const deadline = Date.now() + 4e3;
+  const deadline = Date.now() + waitMs;
   while (Date.now() < deadline) {
     const result = await bridgeRequest(query, {}, "GET");
-    if (result?.status === "complete") return result;
-    await new Promise((resolve3) => setTimeout(resolve3, 100));
+    if (result?.status === "complete" || result?.status === "error") return result;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
   }
   return { ...queued, status: "queued_timeout", message: "Studio \u5DF2\u63A5\u6536\u547D\u4EE4\uFF0C\u4F46\u5C1A\u672A\u56DE\u4F20\u6267\u884C\u7ED3\u679C" };
+}
+function previewReadyResult(result, { displayName = "", commandStatus = result?.status } = {}) {
+  const ready = describePreviewReady({
+    connectedStatus: result?.outcome?.status || result?.status,
+    commandStatus,
+    previewUrl: previewPageUrl(),
+    displayName,
+    message: result?.message
+  });
+  return { ...result, ...ready, displayName: ready.displayName };
+}
+async function ensurePreviewReady({ projectDir, device = "x4_pro" }) {
+  const root = requireProjectDir(projectDir);
+  const snapshot = await readProjectSnapshot(root);
+  const displayName = displayNameFromManifest(snapshot.manifest, snapshot.projectName);
+  startSourceWatcher(snapshot.projectDir);
+  const status = await bridgeRequest("/preview/status", {}, "GET");
+  if (status.status === "not_connected") {
+    return previewReadyResult({ ...status, projectDir: snapshot.projectDir, watching: true }, { displayName, commandStatus: "not_connected" });
+  }
+  const source = await syncProjectSource(snapshot.projectDir);
+  const path = previewRunPath(status.status);
+  const result = await awaitCommand(path, { projectDir: source.projectDir, revision: source.revision, device });
+  return previewReadyResult({
+    ...result,
+    ...source,
+    device,
+    watching: true,
+    commandPath: path
+  }, { displayName, commandStatus: result.status });
 }
 function stopSourceWatcher(projectDir) {
   const watcher = sourceWatchers.get(projectDir);
@@ -36886,13 +36988,9 @@ function startSourceWatcher(projectDir) {
   sourceWatchers.set(projectDir, watcher);
   return watcher;
 }
-server.registerTool("run_xtapp_preview", { description: "Request a preview run on the official Studio page and keep the selected worktree synchronized.", inputSchema: { projectDir: external_exports.string().trim().optional(), device: external_exports.enum(["x4_classic", "x4_pro"]).optional() } }, async ({ projectDir, device = "x4_pro" }) => {
-  const source = projectDir ? await syncProjectSource(projectDir) : null;
-  if (projectDir) startSourceWatcher(resolve2(projectDir));
-  const status = await bridgeRequest("/preview/status", {}, "GET");
-  const path = previewRunPath(status.status);
-  const result = await awaitCommand(path, { projectDir: source?.projectDir || null, revision: source?.revision || null, device });
-  return textResult(JSON.stringify(result), { ...result, device, watching: Boolean(projectDir), commandPath: path });
+server.registerTool("run_xtapp_preview", { description: "Ensure the official Studio preview page is running the current local worktree. Requires the absolute projectDir. If the page is closed or needs login, returns the exact previewUrl instead of claiming success.", inputSchema: { projectDir: external_exports.string().trim().min(1), device: external_exports.enum(["x4_classic", "x4_pro"]).optional() } }, async ({ projectDir, device = "x4_pro" }) => {
+  const result = await ensurePreviewReady({ projectDir, device });
+  return textResult(result.message || JSON.stringify(result), result);
 });
 server.registerTool("sync_xtapp_preview_source", { description: "Read the current Codex worktree source and make it available to the official Studio preview.", inputSchema: { projectDir: external_exports.string().trim() } }, async ({ projectDir }) => {
   const result = await syncProjectSource(projectDir);
@@ -36905,9 +37003,15 @@ server.registerTool("watch_xtapp_preview", { description: "Watch a Codex worktre
   startSourceWatcher(root);
   return textResult(`\u5DF2\u5F00\u59CB\u76D1\u542C ${root}\uFF1BCodex \u4FDD\u5B58 Lua/Manifest \u540E\uFF0CStudio \u4F1A\u81EA\u52A8\u540C\u6B65\u6E90\u7801\u5E76\u5237\u65B0\u9884\u89C8\u3002`, { status: "watching", projectDir: root, intervalMs: 1e3 });
 });
-server.registerTool("get_xtapp_preview_status", { description: "Read the connection and runtime status of the official Studio preview.", inputSchema: {} }, async () => {
+server.registerTool("get_xtapp_preview_status", { description: "Read whether the official Studio preview page is open, which app it is showing, and the exact previewUrl to open.", inputSchema: {} }, async () => {
   const result = await bridgeRequest("/preview/status", {}, "GET");
-  return textResult(JSON.stringify(result), result);
+  let displayName = displayNameFromManifest(result.manifest);
+  if (!displayName && result.status !== "not_connected") {
+    const context = await bridgeRequest("/preview/context", {}, "GET");
+    displayName = displayNameFromManifest(context.manifest);
+  }
+  const ready = previewReadyResult(result, { displayName, commandStatus: result.status === "not_connected" ? "not_connected" : "" });
+  return textResult(ready.message || JSON.stringify(ready), ready);
 });
 server.registerTool("inspect_xtapp_preview_context", { description: "Inspect the active Studio project manifest, Lua entry snippets and recent runtime logs for joint diagnosis.", inputSchema: { query: external_exports.string().trim().optional() } }, async ({ query = "" }) => {
   const context = await bridgeRequest("/preview/context", {}, "GET");

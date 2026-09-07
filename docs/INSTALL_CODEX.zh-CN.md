@@ -20,8 +20,9 @@ codex plugin marketplace add linchuanXu/xtapp-codex-plugin --ref main --json
 codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
 ```
 
-如果预览页没有打开，请用户登录后打开 `get_xtapp_preview_status` 返回的
-`previewUrl`。不要编造下载地址、clone 路径或安装脚本。
+如果预览页没有打开，把 `run_xtapp_preview` 或 `get_xtapp_preview_status`
+返回的 `previewUrl` 原样交给用户。出现登录页就先登录，再回到同一条地址。
+不要编造下载地址、clone 路径或安装脚本。
 
 插件带有本地 `.mcp.json`，没有远程 MCP。
 
@@ -36,8 +37,9 @@ codex plugin list --json
 - 版本：`release-manifest.json` 中的值
 - MCP：自带 `xtapp_studio` stdio，命令 `node ./mcp/server.bundle.mjs`
 
-安装后新开一个 Codex 任务，才会加载新的插件快照。然后调用
-`get_xtapp_preview_status`，打开返回的 `previewUrl`（需登录），并保持打开。
+安装后新开一个 Codex 任务，才会加载新的插件快照。然后对当前 worktree 调用
+`run_xtapp_preview`，把返回的 `previewUrl`（需登录）交给用户并保持打开。
+官网可能已经打开了别的项目；同步会为这个 worktree 新建或复用独立项目。
 
 ## 已发布 Git marketplace 冒烟
 
@@ -88,8 +90,11 @@ CODEX_HOME="$XTAPP_CODEX_PLUGIN_TEST_HOME" codex plugin list --json
 
 ## 预览约定
 
-只有桥接结果是 `complete` 才能说运行成功。`queued` 和 `queued_timeout` 表示
-Studio 已接收命令，但还没返回执行结果。`not_connected` 表示预览页连不上，或 URL 里的 session 对不上。
+只有人读状态是 `running`，或桥接结果是 `complete`，才能说运行成功。
+`need_login_or_open_page` / `not_connected` 表示预览页连不上，或 URL 里的
+session 对不上。`timeout` / `queued_timeout` 表示 Studio 已接收命令，但还没
+返回执行结果。改完代码后再次调用 `run_xtapp_preview`；文件监听不会在 MCP
+重启后自动恢复。
 
 源码同步只读取用户传入的当前工作区路径，留在本机。快照范围以外的二进制素材
 仍由 Studio 的素材管线管理。

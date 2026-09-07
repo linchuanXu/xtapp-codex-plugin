@@ -19,9 +19,10 @@ codex plugin marketplace add linchuanXu/xtapp-codex-plugin --ref main --json
 codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
 ```
 
-If the preview is not open, ask the user to sign in and open the
-`previewUrl` from `get_xtapp_preview_status`. Do not invent a download
-URL, clone path, or install script.
+If the preview is not open, give the exact `previewUrl` from
+`run_xtapp_preview` or `get_xtapp_preview_status`. If a login page
+appears, the user logs in and returns to that URL. Do not invent a
+download URL, clone path, or install script.
 
 The plugin has a local `.mcp.json` and no remote MCP endpoint.
 
@@ -37,8 +38,11 @@ Expected plugin identity:
 - MCP: bundled `xtapp_studio` stdio, command `node ./mcp/server.bundle.mjs`
 
 Start a new Codex task after installation so it loads the new plugin
-snapshot. Then call `get_xtapp_preview_status` and open the returned
-`previewUrl` (login required). Keep that page open.
+snapshot. Then call `run_xtapp_preview` with the current worktree path
+and give the user the returned `previewUrl` (login required). Keep that
+page open. Do not overwrite an unrelated project already open on the
+official page; Studio creates or reuses a Codex-owned project for this
+worktree.
 
 ## Published Git marketplace smoke
 
@@ -93,10 +97,12 @@ Report all of:
 
 ## Preview contract
 
-Do not claim a run succeeded unless the bridge result is `complete`.
-`queued` and `queued_timeout` mean Studio accepted a command but has not
-returned an execution result. `not_connected` means the preview page is
-not reachable or the URL session does not match.
+Do not claim a run succeeded unless the human status is `running` or the
+bridge result is `complete`. `need_login_or_open_page` / `not_connected`
+means the preview page is not reachable or the URL session does not
+match. `timeout` / `queued_timeout` means Studio accepted a command but
+has not returned an execution result. After code changes, call
+`run_xtapp_preview` again; the file watcher does not survive MCP restart.
 
 Source sync reads only the current worktree paths the user passed in.
 It stays on the local machine. Binary assets outside the bounded `.xic`

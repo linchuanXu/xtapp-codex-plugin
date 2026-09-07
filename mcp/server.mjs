@@ -6,6 +6,7 @@ import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@model
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
+import { describePreviewReady, displayNameFromManifest, previewCommandWaitMs, requireProjectDir } from './previewReady.mjs'
 import { loadOrCreatePreviewSession, previewRunPath } from './previewSession.mjs'
 import { readProjectSnapshot } from './projectSnapshot.mjs'
 
@@ -18,7 +19,7 @@ const WIDGET_URI = 'ui://widget/xtapp/studio.html'
 const sourceWatchers = new Map()
 
 const server = new McpServer({ name: 'xtapp-studio', version: '0.1.0' }, {
-  instructions: 'Use XTApp public contract knowledge before guessing APIs. Use the preview tool after project changes. Public store tools inspect and copy only the checked-in standard app templates.'
+  instructions: 'Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates.'
 })
 
 function textResult(text, details = {}) {
@@ -247,17 +248,49 @@ async function syncProjectSource(projectDir) {
   return { ...result, projectDir: snapshot.projectDir, revision: snapshot.revision, warnings: snapshot.warnings, fileCount: snapshot.fileCount, assetCount: snapshot.assetCount, assetBytes: snapshot.assetBytes }
 }
 
-async function awaitCommand(path, body = {}) {
+async function awaitCommand(path, body = {}, waitMs = previewCommandWaitMs(path)) {
   const queued = await bridgeRequest(path, body)
   if (!queued?.commandId || queued.status === 'not_connected') return queued
   const query = `/preview/result?commandId=${encodeURIComponent(queued.commandId)}`
-  const deadline = Date.now() + 4000
+  const deadline = Date.now() + waitMs
   while (Date.now() < deadline) {
     const result = await bridgeRequest(query, {}, 'GET')
-    if (result?.status === 'complete') return result
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    if (result?.status === 'complete' || result?.status === 'error') return result
+    await new Promise((resolveWait) => setTimeout(resolveWait, 100))
   }
   return { ...queued, status: 'queued_timeout', message: 'Studio 已接收命令，但尚未回传执行结果' }
+}
+
+function previewReadyResult(result, { displayName = '', commandStatus = result?.status } = {}) {
+  const ready = describePreviewReady({
+    connectedStatus: result?.outcome?.status || result?.status,
+    commandStatus,
+    previewUrl: previewPageUrl(),
+    displayName,
+    message: result?.message,
+  })
+  return { ...result, ...ready, displayName: ready.displayName }
+}
+
+async function ensurePreviewReady({ projectDir, device = 'x4_pro' }) {
+  const root = requireProjectDir(projectDir)
+  const snapshot = await readProjectSnapshot(root)
+  const displayName = displayNameFromManifest(snapshot.manifest, snapshot.projectName)
+  startSourceWatcher(snapshot.projectDir)
+  const status = await bridgeRequest('/preview/status', {}, 'GET')
+  if (status.status === 'not_connected') {
+    return previewReadyResult({ ...status, projectDir: snapshot.projectDir, watching: true }, { displayName, commandStatus: 'not_connected' })
+  }
+  const source = await syncProjectSource(snapshot.projectDir)
+  const path = previewRunPath(status.status)
+  const result = await awaitCommand(path, { projectDir: source.projectDir, revision: source.revision, device })
+  return previewReadyResult({
+    ...result,
+    ...source,
+    device,
+    watching: true,
+    commandPath: path,
+  }, { displayName, commandStatus: result.status })
 }
 
 function stopSourceWatcher(projectDir) {
@@ -289,13 +322,9 @@ function startSourceWatcher(projectDir) {
   return watcher
 }
 
-server.registerTool('run_xtapp_preview', { description: 'Request a preview run on the official Studio page and keep the selected worktree synchronized.', inputSchema: { projectDir: z.string().trim().optional(), device: z.enum(['x4_classic', 'x4_pro']).optional() } }, async ({ projectDir, device = 'x4_pro' }) => {
-  const source = projectDir ? await syncProjectSource(projectDir) : null
-  if (projectDir) startSourceWatcher(resolve(projectDir))
-  const status = await bridgeRequest('/preview/status', {}, 'GET')
-  const path = previewRunPath(status.status)
-  const result = await awaitCommand(path, { projectDir: source?.projectDir || null, revision: source?.revision || null, device })
-  return textResult(JSON.stringify(result), { ...result, device, watching: Boolean(projectDir), commandPath: path })
+server.registerTool('run_xtapp_preview', { description: 'Ensure the official Studio preview page is running the current local worktree. Requires the absolute projectDir. If the page is closed or needs login, returns the exact previewUrl instead of claiming success.', inputSchema: { projectDir: z.string().trim().min(1), device: z.enum(['x4_classic', 'x4_pro']).optional() } }, async ({ projectDir, device = 'x4_pro' }) => {
+  const result = await ensurePreviewReady({ projectDir, device })
+  return textResult(result.message || JSON.stringify(result), result)
 })
 
 server.registerTool('sync_xtapp_preview_source', { description: 'Read the current Codex worktree source and make it available to the official Studio preview.', inputSchema: { projectDir: z.string().trim() } }, async ({ projectDir }) => {
@@ -311,9 +340,15 @@ server.registerTool('watch_xtapp_preview', { description: 'Watch a Codex worktre
   return textResult(`已开始监听 ${root}；Codex 保存 Lua/Manifest 后，Studio 会自动同步源码并刷新预览。`, { status: 'watching', projectDir: root, intervalMs: 1000 })
 })
 
-server.registerTool('get_xtapp_preview_status', { description: 'Read the connection and runtime status of the official Studio preview.', inputSchema: {} }, async () => {
+server.registerTool('get_xtapp_preview_status', { description: 'Read whether the official Studio preview page is open, which app it is showing, and the exact previewUrl to open.', inputSchema: {} }, async () => {
   const result = await bridgeRequest('/preview/status', {}, 'GET')
-  return textResult(JSON.stringify(result), result)
+  let displayName = displayNameFromManifest(result.manifest)
+  if (!displayName && result.status !== 'not_connected') {
+    const context = await bridgeRequest('/preview/context', {}, 'GET')
+    displayName = displayNameFromManifest(context.manifest)
+  }
+  const ready = previewReadyResult(result, { displayName, commandStatus: result.status === 'not_connected' ? 'not_connected' : '' })
+  return textResult(ready.message || JSON.stringify(ready), ready)
 })
 
 server.registerTool('inspect_xtapp_preview_context', { description: 'Inspect the active Studio project manifest, Lua entry snippets and recent runtime logs for joint diagnosis.', inputSchema: { query: z.string().trim().optional() } }, async ({ query = '' }) => {
