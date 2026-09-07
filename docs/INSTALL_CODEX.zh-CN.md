@@ -41,6 +41,19 @@ codex plugin list --json
 `run_xtapp_preview`，把返回的 `previewUrl`（需登录）交给用户并保持打开。
 官网可能已经打开了别的项目；同步会为这个 worktree 新建或复用独立项目。
 
+## 更新已安装的插件
+
+更新由 Codex 宿主负责，插件不会自己下载覆盖自己。Codex 可能在插件启动或
+`plugin/list` 时自动升级已配置的 Git 市场。要立刻刷新：
+
+```bash
+codex plugin marketplace upgrade xtapp-codex-plugin-github --json
+codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
+```
+
+TUI 的 `/plugins` 市场页也可以升级。缓存版本与 `release-manifest.json`
+一致后，新开一个 Codex 任务。当前任务会继续用旧的 MCP。
+
 ## 已发布 Git marketplace 冒烟
 
 可用隔离的 `CODEX_HOME` 验证包装，不碰日常 Codex 状态：

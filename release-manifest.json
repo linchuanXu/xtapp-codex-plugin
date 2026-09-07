@@ -14,7 +14,7 @@
   },
   "plugin": {
     "name": "xtapp-codex-plugin",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "path": ".",
     "displayName": "XTApp Studio",
     "selector": "xtapp-codex-plugin@xtapp-codex-plugin-github",

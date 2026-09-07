@@ -36713,7 +36713,7 @@ var CATALOG_INDEX = join3(ROOT, "catalog", "index.json");
 var KNOWLEDGE_INDEX = join3(ROOT, "knowledge", "index.json");
 var WIDGET_URI = "ui://widget/xtapp/studio.html";
 var sourceWatchers = /* @__PURE__ */ new Map();
-var server = new McpServer({ name: "xtapp-studio", version: "0.1.0" }, {
+var server = new McpServer({ name: "xtapp-studio", version: "0.1.1" }, {
   instructions: "Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates."
 });
 function textResult(text, details = {}) {

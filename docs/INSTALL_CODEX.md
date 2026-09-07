@@ -44,6 +44,21 @@ page open. Do not overwrite an unrelated project already open on the
 official page; Studio creates or reuses a Codex-owned project for this
 worktree.
 
+## Update an existing install
+
+Codex owns updates. This plugin does not download or replace itself.
+The host may auto-upgrade the configured Git marketplace on plugin
+startup or `plugin/list`. To refresh now:
+
+```bash
+codex plugin marketplace upgrade xtapp-codex-plugin-github --json
+codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
+```
+
+The TUI `/plugins` marketplace tab can also upgrade. After the cache
+matches `release-manifest.json`, start a new Codex task. The current
+task keeps the old MCP until then.
+
 ## Published Git marketplace smoke
 
 An isolated `CODEX_HOME` can verify package installation without touching

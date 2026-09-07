@@ -18,7 +18,7 @@ const KNOWLEDGE_INDEX = join(ROOT, 'knowledge', 'index.json')
 const WIDGET_URI = 'ui://widget/xtapp/studio.html'
 const sourceWatchers = new Map()
 
-const server = new McpServer({ name: 'xtapp-studio', version: '0.1.0' }, {
+const server = new McpServer({ name: 'xtapp-studio', version: '0.1.1' }, {
   instructions: 'Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates.'
 })
 

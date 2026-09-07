@@ -41,7 +41,7 @@ worktree 新建或复用独立项目，不会覆盖用户其他工程。
 - Plugin：`xtapp-codex-plugin`
 - 显示名：`XTApp Studio`
 - 稳定选择器：`xtapp-codex-plugin@xtapp-codex-plugin-github`
-- 插件版本：`0.1.0`
+- 插件版本：`0.1.1`
 - 分发：从 `main` 发布的 Git marketplace
 - 宿主：仅 Codex
 - MCP：自带 `xtapp_studio` stdio（`node ./mcp/server.bundle.mjs`）
@@ -66,9 +66,18 @@ codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
 codex plugin list --json
 ```
 
+已经装过插件时，用市场升级，不要自己写更新器：
+
+```bash
+codex plugin marketplace upgrade xtapp-codex-plugin-github --json
+codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
+```
+
+Codex 也可能在插件启动时自动升级这个 Git 市场。安装或升级后新开一个
+Codex 任务，才会加载新的 MCP。
+
 如果预览页没有打开，把 `previewUrl` 原样给用户。出现登录页就先登录，再回到
-同一条地址，并保持打开。安装后新开一个 Codex 任务，再让 Codex 预览当前
-worktree。
+同一条地址，并保持打开。然后再让 Codex 预览当前 worktree。
 
 隔离验证和卸载见 [docs/INSTALL_CODEX.zh-CN.md](docs/INSTALL_CODEX.zh-CN.md)。
 包身份在 [`release-manifest.json`](release-manifest.json)。

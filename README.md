@@ -45,7 +45,7 @@ reuses a Codex project for this worktree instead of overwriting it.
 - Plugin: `xtapp-codex-plugin`
 - Display name: `XTApp Studio`
 - Stable plugin selector: `xtapp-codex-plugin@xtapp-codex-plugin-github`
-- Plugin version: `0.1.0`
+- Plugin version: `0.1.1`
 - Distribution: published Git marketplace from `main`
 - Host: Codex only
 - MCP: bundled `xtapp_studio` stdio (`node ./mcp/server.bundle.mjs`)
@@ -72,10 +72,21 @@ Studio source path. Verify:
 codex plugin list --json
 ```
 
+If the plugin is already installed, refresh the marketplace instead of
+building a custom updater:
+
+```bash
+codex plugin marketplace upgrade xtapp-codex-plugin-github --json
+codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
+```
+
+Codex may also auto-upgrade this Git marketplace on plugin startup. Start
+a new Codex task after install or upgrade so the MCP snapshot reloads.
+
 If the preview is not open, give the user the exact `previewUrl` and ask
 them to open it. If a login page appears, they should log in and return
-to that URL. Keep it open. Start a new Codex task after plugin
-installation, then ask Codex to preview the current worktree.
+to that URL. Keep it open. Then ask Codex to preview the current
+worktree.
 
 See [docs/INSTALL_CODEX.md](docs/INSTALL_CODEX.md) for isolated validation
 and uninstall, or the [Chinese install guide](docs/INSTALL_CODEX.zh-CN.md).

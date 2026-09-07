@@ -70,21 +70,33 @@ codex plugin marketplace list --json
 codex plugin list --json
 ```
 
-If `xtapp-codex-plugin@xtapp-codex-plugin-github` is already at the version
-declared in `release-manifest.json`, do not reinstall it. If marketplace
-`xtapp-codex-plugin-github` points at a different source, stop and report
-the name collision. Never remove or overwrite unrelated marketplaces,
-plugins, MCP servers, or auth state.
+If marketplace `xtapp-codex-plugin-github` points at a different source,
+stop and report the name collision. Never remove or overwrite unrelated
+marketplaces, plugins, MCP servers, or auth state.
 
-### 3. Install the plugin
+Codex may auto-upgrade this Git marketplace on plugin startup. Do not
+build a custom updater. If the marketplace is already configured, refresh
+it first, then install or refresh the plugin:
 
 ```bash
-codex plugin marketplace add "$XTAPP_AGENT_PLUGIN_SOURCE" --ref main --json
+codex plugin marketplace upgrade xtapp-codex-plugin-github --json
 codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
 ```
 
-`alreadyAdded: true` is success. Do not hand-edit Codex configuration or
-copy plugin files into a Codex home.
+If the marketplace is not configured yet, add it, then add the plugin.
+
+### 3. Install or refresh the plugin
+
+```bash
+codex plugin marketplace add "$XTAPP_AGENT_PLUGIN_SOURCE" --ref main --json
+codex plugin marketplace upgrade xtapp-codex-plugin-github --json
+codex plugin add xtapp-codex-plugin@xtapp-codex-plugin-github --json
+```
+
+`alreadyAdded: true` is success. After a marketplace upgrade, still run
+`plugin add` so the installed cache matches `release-manifest.json`.
+Do not hand-edit Codex configuration or copy plugin files into a Codex
+home. Start a new Codex task after install or upgrade so MCP reloads.
 
 ### 4. Open the official preview page
 

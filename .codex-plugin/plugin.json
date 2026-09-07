@@ -1,6 +1,6 @@
 {
   "name": "xtapp-codex-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "XTApp Codex integration: Lua contract knowledge, public app templates, and a live Studio preview widget.",
   "author": {
     "name": "XTApp AI Studio"
