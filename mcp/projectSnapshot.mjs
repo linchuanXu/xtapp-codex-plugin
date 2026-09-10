@@ -9,7 +9,21 @@ const MAX_ASSETS = 80
 const MAX_ASSET_BYTES = 2 * 1024 * 1024
 const MAX_TOTAL_ASSET_BYTES = 8 * 1024 * 1024
 const TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|scripts)\/[^/]+\.lua|(?:data|lang)\/[^/]+\.(?:tsv|txt|json))$/i
-const ASSET_FILE = /^(?:assets|raw)\/[^/]+\.xic$/i
+const ASSET_FILE = /^(?:assets|raw)\/[A-Za-z0-9_-]{1,23}\.(xic|png|jpe?g|webp)$/i
+
+function assetMime(path) {
+  const lower = String(path || '').toLowerCase()
+  if (lower.endsWith('.xic')) return 'application/x-xic'
+  if (lower.endsWith('.png')) return 'image/png'
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
+  if (lower.endsWith('.webp')) return 'image/webp'
+  return 'application/octet-stream'
+}
+
+function assetKey(path) {
+  const match = String(path || '').match(/(?:^|\/)([A-Za-z0-9_-]{1,23})\.(?:xic|png|jpe?g|webp)$/i)
+  return match ? match[1] : basename(path).replace(/\.[^.]+$/, '')
+}
 const IGNORED_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', '.vite'])
 
 function assertProjectDir(value) {
@@ -51,7 +65,7 @@ async function collectFiles(root) {
         if (bytes.length > MAX_ASSET_BYTES) { warnings.push(`${path} 超过 ${MAX_ASSET_BYTES} 字节，已跳过`); continue }
         if (totalAssetBytes + bytes.length > MAX_TOTAL_ASSET_BYTES) { warnings.push(`素材快照超过 ${MAX_TOTAL_ASSET_BYTES} 字节，已截断`); continue }
         totalAssetBytes += bytes.length
-        assets.push({ path, key: basename(path, '.xic'), mime: 'application/x-xic', bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), base64: bytes.toString('base64') })
+        assets.push({ path, key: assetKey(path), mime: assetMime(path), bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), base64: bytes.toString('base64') })
         continue
       }
       if (!TEXT_FILE.test(path)) continue

@@ -4,7 +4,9 @@
 
 用户在本地写 XTApp，打开一个官网预览页看效果，改本地代码后页面更新。Studio 是项目和 Lua Worker 的运行 authority。Codex 插件通过官网 `/preview/*` 排队命令。模拟器画面在官网预览页，不在右侧 widget。
 
-`run_xtapp_preview` 必须带当前 worktree 的绝对路径 `projectDir`。它会读取本机 Lua、Manifest、data、lang，以及有上限的 `assets/*.xic`。官网会为这个 worktree **新建或复用独立项目**，不会覆盖用户正在写的其他工程（例如斗地主）。不要说插件不读文件系统。不要省略 `projectDir` 去跑官网里已经打开的项目。
+`run_xtapp_preview` 必须带当前 worktree 的绝对路径 `projectDir`。它会读取本机 Lua、Manifest、data、lang，以及有上限的 `assets|raw` 下 `.xic` 与 `.png/.jpg/.jpeg/.webp`。官网会为这个 worktree **新建或复用独立项目**，不会覆盖用户正在写的其他工程（例如斗地主）。不要说插件不读文件系统。不要省略 `projectDir` 去跑官网里已经打开的项目。
+
+所有 `/preview/*` JSON 都是信封：`{ok,data}` 或 `{ok,false,error:{code,message,details}}`。`ok` 只表示这次 HTTP 调用是否按契约完成。预览页没开时仍是 `ok: true`，`data.status: "not_connected"`。
 
 ## 启动
 
@@ -18,19 +20,25 @@
 
 人读状态：`need_login_or_open_page`、`running`、`timeout`、`page_open`。
 
+## 素材
+
+- 快照里每个素材都带 `key/path/mime/bytes/sha256/base64`。解析不出 key 的条目会出现在 `dropped`，不会被静默丢掉。
+- `.xic` 原样入库。`.png/.jpg/.webp` 由 Studio 转成 1bpp XIC 和配套 matte。Proxy 不转码。
+- 工具返回文本里如果出现 `未接受：…`，必须告诉用户哪些文件没进去，不要假装同步成功。
+
 ## 能力
 
 - `run_xtapp_preview`：检查连接 → 同步当前 worktree → 启动或刷新。页没开时只返回 URL。若状态是 `stopped` 或 `error`，改走 `restart`。每次调用会重新挂上 1 秒文件监听。
-- `restart_xtapp_preview`：强制重新拉起 Lua Worker。
-- `sync_xtapp_preview_source`：只同步源码，不启动。
+- `restart_xtapp_preview`：先同步当前 worktree，再强制重新拉起 Lua Worker。必须带 `projectDir`。
+- `sync_xtapp_preview_source`：只同步源码和素材，不启动。注意返回里的 `dropped`。
 - `input`：模拟 `up/down/left/right/ok/back`。
 - `tap_xtapp_preview_target`：只在 Lua 声明了 `__testing_interactions` 时有效；默认模板通常没有。坐标点击用 `send_xtapp_preview_touch`，或让用户点画布。
 - `stop`：停止当前 Worker。
-- `capture_xtapp_preview`：截当前模拟器 PNG。
+- `capture_xtapp_preview`：截当前模拟器 PNG；优先用命令结果里的 `screenshot.dataUrl`。
 - `/preview/context`：回传受限 Manifest、Lua 片段和最近日志。
 
 右侧 widget 只报连接、应用名和 previewUrl，不是模拟器。
 
 ## 诊断
 
-按键不生效时，先查 `topic=input`，再调用 `inspect_xtapp_preview_context`。不要把 `queued` / `queued_timeout` / `not_connected` / `need_login_or_open_page` 报成运行成功。装完插件后需要新开一个 Codex 任务才会加载 MCP。
+按键不生效时，先查 `topic=input`，再调用 `inspect_xtapp_preview_context`。不要把 `queued` / `queued_timeout` / `not_connected` / `need_login_or_open_page` / `error` 报成运行成功。装完插件后需要新开一个 Codex 任务才会加载 MCP。

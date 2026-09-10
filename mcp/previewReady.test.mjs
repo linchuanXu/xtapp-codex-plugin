@@ -8,8 +8,8 @@ test('run 必须带当前 worktree 绝对路径', () => {
 })
 
 test('启动预览多等一会儿，按键和截图仍用短超时', () => {
-  assert.equal(previewCommandWaitMs('/preview/run'), 18_000)
-  assert.equal(previewCommandWaitMs('/preview/restart'), 18_000)
+  assert.equal(previewCommandWaitMs('/preview/run'), 30_000)
+  assert.equal(previewCommandWaitMs('/preview/restart'), 30_000)
   assert.equal(previewCommandWaitMs('/preview/input'), 4_000)
   assert.equal(previewCommandWaitMs('/preview/capture'), 4_000)
 })

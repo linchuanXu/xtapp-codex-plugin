@@ -9,6 +9,14 @@ import { z } from 'zod'
 import { PLUGIN_VERSION, describePreviewReady, displayNameFromManifest, previewCommandWaitMs, requireProjectDir } from './previewReady.mjs'
 import { loadOrCreatePreviewSession, previewRunPath } from './previewSession.mjs'
 import { readProjectSnapshot } from './projectSnapshot.mjs'
+import {
+  classifyPreviewBridgeError,
+  describeSourceSync,
+  formatDroppedAssets,
+  isFailedCommand,
+  previewRequestTimeoutMs,
+  unwrapPreviewEnvelope,
+} from './previewBridgeClient.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const CONTRACT_DIR = process.env.XTAPP_CONTRACT_DIR ? resolve(process.env.XTAPP_CONTRACT_DIR) : null
@@ -220,23 +228,24 @@ function withPreviewMeta(result = {}) {
   return { ...result, sessionId: result.sessionId || previewSessionId(), previewUrl: previewPageUrl() }
 }
 
-async function bridgeRequest(path, body = {}, method = 'POST') {
+async function bridgeRequest(path, body = {}, method = 'POST', timeoutMs = previewRequestTimeoutMs(path.split('?')[0])) {
   const origin = studioOrigin()
   const sessionId = previewSessionId()
   const url = new URL(path, `${origin}/`)
   if (method === 'GET') url.searchParams.set('sessionId', sessionId)
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 4000)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const response = await fetch(url, { method, headers: { 'content-type': 'application/json' }, signal: controller.signal, ...(method === 'GET' ? {} : { body: JSON.stringify({ ...body, sessionId, pluginVersion: PLUGIN_VERSION }) }) })
-    if (!response.ok) throw new Error(`Studio preview bridge failed: HTTP ${response.status}`)
-    return withPreviewMeta(await response.json())
-  } catch (error) {
-    if (error?.name === 'AbortError') return withPreviewMeta({ status: 'not_connected', message: `Studio 响应超时：${origin}` })
-    if (error?.cause?.code === 'ECONNREFUSED' || error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNRESET') {
-      return withPreviewMeta({ status: 'not_connected', message: `无法连接 Studio 预览桥：${origin}` })
+    const payload = await response.json().catch(() => null)
+    if (payload && typeof payload === 'object') {
+      const data = unwrapPreviewEnvelope(payload)
+      return withPreviewMeta(data)
     }
-    throw error
+    if (!response.ok) throw new Error(`Studio preview bridge failed: HTTP ${response.status}`)
+    throw new Error('预览桥响应无效')
+  } catch (error) {
+    return withPreviewMeta(classifyPreviewBridgeError(error, origin))
   } finally {
     clearTimeout(timeout)
   }
@@ -250,12 +259,13 @@ async function syncProjectSource(projectDir) {
 
 async function awaitCommand(path, body = {}, waitMs = previewCommandWaitMs(path)) {
   const queued = await bridgeRequest(path, body)
+  if (isFailedCommand(queued)) return queued
   if (!queued?.commandId || queued.status === 'not_connected') return queued
   const query = `/preview/result?commandId=${encodeURIComponent(queued.commandId)}`
   const deadline = Date.now() + waitMs
   while (Date.now() < deadline) {
     const result = await bridgeRequest(query, {}, 'GET')
-    if (result?.status === 'complete' || result?.status === 'error') return result
+    if (isFailedCommand(result) || result?.status === 'complete') return result
     await new Promise((resolveWait) => setTimeout(resolveWait, 100))
   }
   return { ...queued, status: 'queued_timeout', message: 'Studio 已接收命令，但尚未回传执行结果' }
@@ -324,12 +334,12 @@ function startSourceWatcher(projectDir) {
 
 server.registerTool('run_xtapp_preview', { description: 'Ensure the official Studio preview page is running the current local worktree. Requires the absolute projectDir. If the page is closed or needs login, returns the exact previewUrl instead of claiming success.', inputSchema: { projectDir: z.string().trim().min(1), device: z.enum(['x4_classic', 'x4_pro']).optional() } }, async ({ projectDir, device = 'x4_pro' }) => {
   const result = await ensurePreviewReady({ projectDir, device })
-  return textResult(result.message || JSON.stringify(result), result)
+  return textResult([result.message || JSON.stringify(result), formatDroppedAssets(result.dropped)].filter(Boolean).join('\n'), result)
 })
 
 server.registerTool('sync_xtapp_preview_source', { description: 'Read the current Codex worktree source and make it available to the official Studio preview.', inputSchema: { projectDir: z.string().trim() } }, async ({ projectDir }) => {
   const result = await syncProjectSource(projectDir)
-  return textResult(JSON.stringify(result, null, 2), result)
+  return textResult(describeSourceSync(result), result)
 })
 
 server.registerTool('watch_xtapp_preview', { description: 'Watch a Codex worktree and automatically synchronize source changes to the official Studio preview.', inputSchema: { projectDir: z.string().trim(), enabled: z.boolean().optional() } }, async ({ projectDir, enabled = true }) => {
@@ -382,7 +392,9 @@ server.registerTool('send_xtapp_preview_touch', { description: 'Send a touch ges
 
 server.registerTool('capture_xtapp_preview', { description: 'Capture the current Studio preview PNG and frame revision.', inputSchema: {} }, async () => {
   const command = await awaitCommand('/preview/capture', {})
-  const screenshot = await bridgeRequest('/preview/screenshot', {}, 'GET')
+  const screenshot = command.screenshot?.dataUrl
+    ? command.screenshot
+    : await bridgeRequest('/preview/screenshot', {}, 'GET')
   const result = { ...command, screenshot }
   return textResult(JSON.stringify(result), result)
 })
@@ -392,9 +404,10 @@ server.registerTool('stop_xtapp_preview', { description: 'Stop the active Studio
   return textResult(JSON.stringify(result), result)
 })
 
-server.registerTool('restart_xtapp_preview', { description: 'Restart the active Studio preview runtime with the latest project files.', inputSchema: {} }, async () => {
-  const result = await awaitCommand('/preview/restart')
-  return textResult(JSON.stringify(result), result)
+server.registerTool('restart_xtapp_preview', { description: 'Restart the official Studio preview with the current local worktree. Syncs source first, then restarts the Lua worker.', inputSchema: { projectDir: z.string().trim().min(1), device: z.enum(['x4_classic', 'x4_pro']).optional() } }, async ({ projectDir, device }) => {
+  const source = await syncProjectSource(requireProjectDir(projectDir))
+  const result = await awaitCommand('/preview/restart', { projectDir: source.projectDir, revision: source.revision, device })
+  return textResult(result.message || JSON.stringify(result), { ...result, ...source })
 })
 
 await server.connect(new StdioServerTransport())

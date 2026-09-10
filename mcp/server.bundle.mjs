@@ -36495,7 +36495,7 @@ var StdioServerTransport = class {
 
 // mcp/previewReady.mjs
 var PLUGIN_VERSION = "0.1.2";
-var PREVIEW_RUN_WAIT_MS = 18e3;
+var PREVIEW_RUN_WAIT_MS = 3e4;
 var PREVIEW_QUICK_WAIT_MS = 4e3;
 function requireProjectDir(projectDir) {
   const dir = String(projectDir || "").trim();
@@ -36603,7 +36603,19 @@ var MAX_ASSETS = 80;
 var MAX_ASSET_BYTES = 2 * 1024 * 1024;
 var MAX_TOTAL_ASSET_BYTES = 8 * 1024 * 1024;
 var TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|scripts)\/[^/]+\.lua|(?:data|lang)\/[^/]+\.(?:tsv|txt|json))$/i;
-var ASSET_FILE = /^(?:assets|raw)\/[^/]+\.xic$/i;
+var ASSET_FILE = /^(?:assets|raw)\/[A-Za-z0-9_-]{1,23}\.(xic|png|jpe?g|webp)$/i;
+function assetMime(path) {
+  const lower = String(path || "").toLowerCase();
+  if (lower.endsWith(".xic")) return "application/x-xic";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return "application/octet-stream";
+}
+function assetKey(path) {
+  const match = String(path || "").match(/(?:^|\/)([A-Za-z0-9_-]{1,23})\.(?:xic|png|jpe?g|webp)$/i);
+  return match ? match[1] : basename(path).replace(/\.[^.]+$/, "");
+}
 var IGNORED_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", "dist", "build", ".vite"]);
 function assertProjectDir(value) {
   const raw = String(value || "").trim();
@@ -36657,7 +36669,7 @@ async function collectFiles(root) {
           continue;
         }
         totalAssetBytes += bytes.length;
-        assets.push({ path, key: basename(path, ".xic"), mime: "application/x-xic", bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), base64: bytes.toString("base64") });
+        assets.push({ path, key: assetKey(path), mime: assetMime(path), bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), base64: bytes.toString("base64") });
         continue;
       }
       if (!TEXT_FILE.test(path)) continue;
@@ -36704,6 +36716,51 @@ async function readProjectSnapshot(projectDir) {
     assetCount: assets.length,
     capturedAt: Date.now()
   };
+}
+
+// mcp/previewBridgeClient.mjs
+var PREVIEW_SOURCE_WAIT_MS = 12e4;
+var PREVIEW_DEFAULT_WAIT_MS = 4e3;
+function unwrapPreviewEnvelope(body) {
+  if (body && body.ok === false) {
+    const error61 = new Error(body.error?.message || "\u9884\u89C8\u6865\u8BF7\u6C42\u5931\u8D25");
+    error61.code = body.error?.code;
+    error61.details = body.error?.details;
+    error61.status = body.error?.status;
+    throw error61;
+  }
+  if (body && body.ok === true && body.data && typeof body.data === "object") return body.data;
+  throw new Error("\u9884\u89C8\u6865\u54CD\u5E94\u65E0\u6548");
+}
+function classifyPreviewBridgeError(error61, origin = "") {
+  if (error61?.cause?.code === "ECONNREFUSED" || error61?.code === "ECONNREFUSED" || error61?.cause?.code === "ECONNRESET") {
+    return { status: "not_connected", message: `\u65E0\u6CD5\u8FDE\u63A5 Studio \u9884\u89C8\u6865\uFF1A${origin}` };
+  }
+  if (error61?.name === "AbortError") {
+    const timeout = new Error(`Studio \u54CD\u5E94\u8D85\u65F6\uFF1A${origin}`);
+    timeout.code = "PREVIEW_TIMEOUT";
+    timeout.cause = error61;
+    throw timeout;
+  }
+  throw error61;
+}
+function formatDroppedAssets(dropped = []) {
+  if (!Array.isArray(dropped) || !dropped.length) return "";
+  return `\u672A\u63A5\u53D7\uFF1A${dropped.map((item) => `${item.path || item.key || "unknown"}\uFF08${item.reason || "unknown"}\uFF09`).join("\uFF1B")}`;
+}
+function describeSourceSync(result = {}) {
+  const dropped = formatDroppedAssets(result.dropped);
+  if (result.status === "not_connected") {
+    return [result.message, dropped].filter(Boolean).join("\n");
+  }
+  const accepted = `\u5DF2\u540C\u6B65 revision ${result.revision || ""}\uFF0C\u63A5\u53D7 ${result.fileCount ?? result.accepted?.files?.length ?? 0} \u4E2A\u6587\u4EF6\u3001${result.assetCount ?? result.accepted?.assets?.length ?? 0} \u4E2A\u7D20\u6750\u3002`;
+  return [accepted, dropped].filter(Boolean).join("\n");
+}
+function isFailedCommand(result = {}) {
+  return result.ok === false || result.status === "error" || result.outcome?.status === "error";
+}
+function previewRequestTimeoutMs(path) {
+  return path === "/preview/source" || path === "/preview/source/patch" || path === "/preview/source/validate" ? PREVIEW_SOURCE_WAIT_MS : PREVIEW_DEFAULT_WAIT_MS;
 }
 
 // mcp/server.mjs
@@ -36893,23 +36950,24 @@ function previewPageUrl() {
 function withPreviewMeta(result = {}) {
   return { ...result, sessionId: result.sessionId || previewSessionId(), previewUrl: previewPageUrl() };
 }
-async function bridgeRequest(path, body = {}, method = "POST") {
+async function bridgeRequest(path, body = {}, method = "POST", timeoutMs = previewRequestTimeoutMs(path.split("?")[0])) {
   const origin = studioOrigin();
   const sessionId = previewSessionId();
   const url2 = new URL(path, `${origin}/`);
   if (method === "GET") url2.searchParams.set("sessionId", sessionId);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4e3);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url2, { method, headers: { "content-type": "application/json" }, signal: controller.signal, ...method === "GET" ? {} : { body: JSON.stringify({ ...body, sessionId, pluginVersion: PLUGIN_VERSION }) } });
-    if (!response.ok) throw new Error(`Studio preview bridge failed: HTTP ${response.status}`);
-    return withPreviewMeta(await response.json());
-  } catch (error61) {
-    if (error61?.name === "AbortError") return withPreviewMeta({ status: "not_connected", message: `Studio \u54CD\u5E94\u8D85\u65F6\uFF1A${origin}` });
-    if (error61?.cause?.code === "ECONNREFUSED" || error61?.code === "ECONNREFUSED" || error61?.cause?.code === "ECONNRESET") {
-      return withPreviewMeta({ status: "not_connected", message: `\u65E0\u6CD5\u8FDE\u63A5 Studio \u9884\u89C8\u6865\uFF1A${origin}` });
+    const payload = await response.json().catch(() => null);
+    if (payload && typeof payload === "object") {
+      const data = unwrapPreviewEnvelope(payload);
+      return withPreviewMeta(data);
     }
-    throw error61;
+    if (!response.ok) throw new Error(`Studio preview bridge failed: HTTP ${response.status}`);
+    throw new Error("\u9884\u89C8\u6865\u54CD\u5E94\u65E0\u6548");
+  } catch (error61) {
+    return withPreviewMeta(classifyPreviewBridgeError(error61, origin));
   } finally {
     clearTimeout(timeout);
   }
@@ -36921,12 +36979,13 @@ async function syncProjectSource(projectDir) {
 }
 async function awaitCommand(path, body = {}, waitMs = previewCommandWaitMs(path)) {
   const queued = await bridgeRequest(path, body);
+  if (isFailedCommand(queued)) return queued;
   if (!queued?.commandId || queued.status === "not_connected") return queued;
   const query = `/preview/result?commandId=${encodeURIComponent(queued.commandId)}`;
   const deadline = Date.now() + waitMs;
   while (Date.now() < deadline) {
     const result = await bridgeRequest(query, {}, "GET");
-    if (result?.status === "complete" || result?.status === "error") return result;
+    if (isFailedCommand(result) || result?.status === "complete") return result;
     await new Promise((resolveWait) => setTimeout(resolveWait, 100));
   }
   return { ...queued, status: "queued_timeout", message: "Studio \u5DF2\u63A5\u6536\u547D\u4EE4\uFF0C\u4F46\u5C1A\u672A\u56DE\u4F20\u6267\u884C\u7ED3\u679C" };
@@ -36991,11 +37050,11 @@ function startSourceWatcher(projectDir) {
 }
 server.registerTool("run_xtapp_preview", { description: "Ensure the official Studio preview page is running the current local worktree. Requires the absolute projectDir. If the page is closed or needs login, returns the exact previewUrl instead of claiming success.", inputSchema: { projectDir: external_exports.string().trim().min(1), device: external_exports.enum(["x4_classic", "x4_pro"]).optional() } }, async ({ projectDir, device = "x4_pro" }) => {
   const result = await ensurePreviewReady({ projectDir, device });
-  return textResult(result.message || JSON.stringify(result), result);
+  return textResult([result.message || JSON.stringify(result), formatDroppedAssets(result.dropped)].filter(Boolean).join("\n"), result);
 });
 server.registerTool("sync_xtapp_preview_source", { description: "Read the current Codex worktree source and make it available to the official Studio preview.", inputSchema: { projectDir: external_exports.string().trim() } }, async ({ projectDir }) => {
   const result = await syncProjectSource(projectDir);
-  return textResult(JSON.stringify(result, null, 2), result);
+  return textResult(describeSourceSync(result), result);
 });
 server.registerTool("watch_xtapp_preview", { description: "Watch a Codex worktree and automatically synchronize source changes to the official Studio preview.", inputSchema: { projectDir: external_exports.string().trim(), enabled: external_exports.boolean().optional() } }, async ({ projectDir, enabled = true }) => {
   const root = resolve2(projectDir);
@@ -37040,7 +37099,7 @@ server.registerTool("send_xtapp_preview_touch", { description: "Send a touch ges
 });
 server.registerTool("capture_xtapp_preview", { description: "Capture the current Studio preview PNG and frame revision.", inputSchema: {} }, async () => {
   const command = await awaitCommand("/preview/capture", {});
-  const screenshot = await bridgeRequest("/preview/screenshot", {}, "GET");
+  const screenshot = command.screenshot?.dataUrl ? command.screenshot : await bridgeRequest("/preview/screenshot", {}, "GET");
   const result = { ...command, screenshot };
   return textResult(JSON.stringify(result), result);
 });
@@ -37048,8 +37107,9 @@ server.registerTool("stop_xtapp_preview", { description: "Stop the active Studio
   const result = await awaitCommand("/preview/stop");
   return textResult(JSON.stringify(result), result);
 });
-server.registerTool("restart_xtapp_preview", { description: "Restart the active Studio preview runtime with the latest project files.", inputSchema: {} }, async () => {
-  const result = await awaitCommand("/preview/restart");
-  return textResult(JSON.stringify(result), result);
+server.registerTool("restart_xtapp_preview", { description: "Restart the official Studio preview with the current local worktree. Syncs source first, then restarts the Lua worker.", inputSchema: { projectDir: external_exports.string().trim().min(1), device: external_exports.enum(["x4_classic", "x4_pro"]).optional() } }, async ({ projectDir, device }) => {
+  const source = await syncProjectSource(requireProjectDir(projectDir));
+  const result = await awaitCommand("/preview/restart", { projectDir: source.projectDir, revision: source.revision, device });
+  return textResult(result.message || JSON.stringify(result), { ...result, ...source });
 });
 await server.connect(new StdioServerTransport());

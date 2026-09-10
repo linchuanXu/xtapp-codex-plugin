@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import {
+  classifyPreviewBridgeError,
+  describeSourceSync,
+  formatDroppedAssets,
+  isFailedCommand,
+  previewRequestTimeoutMs,
+  unwrapPreviewEnvelope,
+} from './previewBridgeClient.mjs'
+
+test('envelope unwraps data and surfaces stable error codes', () => {
+  assert.deepEqual(unwrapPreviewEnvelope({ ok: true, data: { status: 'queued', commandId: 'c1' } }), {
+    status: 'queued',
+    commandId: 'c1',
+  })
+  assert.throws(
+    () => unwrapPreviewEnvelope({ ok: false, error: { code: 'REVISION_CONFLICT', message: '修订冲突' } }),
+    (error) => error.code === 'REVISION_CONFLICT' && /修订冲突/.test(error.message),
+  )
+  assert.throws(() => unwrapPreviewEnvelope({ status: 'queued' }), /预览桥响应无效/)
+})
+
+test('connection refusal is not_connected; abort is a real timeout', () => {
+  assert.deepEqual(
+    classifyPreviewBridgeError({ code: 'ECONNREFUSED' }, 'https://xtapp-ai-dev.xteink.cn'),
+    { status: 'not_connected', message: '无法连接 Studio 预览桥：https://xtapp-ai-dev.xteink.cn' },
+  )
+  assert.throws(
+    () => classifyPreviewBridgeError({ name: 'AbortError' }, 'https://xtapp-ai-dev.xteink.cn'),
+    (error) => error.code === 'PREVIEW_TIMEOUT' && /响应超时/.test(error.message),
+  )
+})
+
+test('dropped assets always appear in the sync text', () => {
+  assert.equal(formatDroppedAssets([{ path: 'secret.bin', reason: 'path_rejected' }]), '未接受：secret.bin（path_rejected）')
+  assert.match(describeSourceSync({
+    status: 'queued',
+    revision: 'abc',
+    fileCount: 2,
+    assetCount: 1,
+    dropped: [{ path: 'notes/readme.txt', reason: 'path_rejected' }],
+  }), /未接受：notes\/readme.txt（path_rejected）/)
+})
+
+test('failed commands include envelope and outcome errors', () => {
+  assert.equal(isFailedCommand({ ok: false }), true)
+  assert.equal(isFailedCommand({ status: 'error' }), true)
+  assert.equal(isFailedCommand({ status: 'complete', outcome: { status: 'error' } }), true)
+  assert.equal(isFailedCommand({ status: 'complete' }), false)
+})
+
+test('source posts wait two minutes; other posts stay short', () => {
+  assert.equal(previewRequestTimeoutMs('/preview/source'), 120_000)
+  assert.equal(previewRequestTimeoutMs('/preview/run'), 4_000)
+})
