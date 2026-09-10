@@ -4,8 +4,8 @@ local NAV = {"首页", "账单", "待办", "我的"}
 local function round_fill(g,x,y,w,h,r,color)
   r=math.max(1,math.min(r,math.floor(w/2),math.floor(h/2)))
   g:rect(x+r,y,w-r*2,h,"fill",color); g:rect(x,y+r,w,h-r*2,"fill",color)
-  g:circle(x+r,y+r,r,"fill",color); g:circle(x+w-r,y+r,r,"fill",color)
-  g:circle(x+r,y+h-r,r,"fill",color); g:circle(x+w-r,y+h-r,r,"fill",color)
+  g:circle(x+r,y+r,r,"fill",color); g:circle(x+w-1-r,y+r,r,"fill",color)
+  g:circle(x+r,y+h-1-r,r,"fill",color); g:circle(x+w-1-r,y+h-1-r,r,"fill",color)
 end
 
 local function round_stroke(g,x,y,w,h,r,color,bg)

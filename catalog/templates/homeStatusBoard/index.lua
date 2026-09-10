@@ -140,9 +140,9 @@ local function round_fill(g, x, y, w, h, radius, color)
   g:rect(x + r, y, w - r * 2, h, "fill", color)
   g:rect(x, y + r, w, h - r * 2, "fill", color)
   g:circle(x + r, y + r, r, "fill", color)
-  g:circle(x + w - r, y + r, r, "fill", color)
-  g:circle(x + r, y + h - r, r, "fill", color)
-  g:circle(x + w - r, y + h - r, r, "fill", color)
+  g:circle(x + w - 1 - r, y + r, r, "fill", color)
+  g:circle(x + r, y + h - 1 - r, r, "fill", color)
+  g:circle(x + w - 1 - r, y + h - 1 - r, r, "fill", color)
 end
 
 local function round_outline(g, x, y, w, h, radius, outline, inside)

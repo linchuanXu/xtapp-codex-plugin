@@ -29,9 +29,9 @@ local function rounded_rect(g, x, y, w, h, mode, color, radius)
     g:rect(x + r, y, w - r * 2, h, "fill", color)
     g:rect(x, y + r, w, h - r * 2, "fill", color)
     g:circle(x + r, y + r, r, "fill", color)
-    g:circle(x + w - r, y + r, r, "fill", color)
-    g:circle(x + r, y + h - r, r, "fill", color)
-    g:circle(x + w - r, y + h - r, r, "fill", color)
+    g:circle(x + w - 1 - r, y + r, r, "fill", color)
+    g:circle(x + r, y + h - 1 - r, r, "fill", color)
+    g:circle(x + w - 1 - r, y + h - 1 - r, r, "fill", color)
   else
     -- 1bpp API 的 g:circle stroke 画的是完整圆环而非圆弧，直接画四角会出现
     -- 按钮内部的小圆圈。描边改用差集：先铺深色大圆角，再叠背景色内缩圆角，
@@ -44,17 +44,17 @@ local function rounded_rect(g, x, y, w, h, mode, color, radius)
     g:rect(x + r, y, w - r * 2, h, "fill", fill_color)
     g:rect(x, y + r, w, h - r * 2, "fill", fill_color)
     g:circle(x + r, y + r, r, "fill", fill_color)
-    g:circle(x + w - r, y + r, r, "fill", fill_color)
-    g:circle(x + r, y + h - r, r, "fill", fill_color)
-    g:circle(x + w - r, y + h - r, r, "fill", fill_color)
-    -- 内缩圆角：整体内移 inset，圆心仍落在 (x+r, y+r) 与外圆角同心，
+    g:circle(x + w - 1 - r, y + r, r, "fill", fill_color)
+    g:circle(x + r, y + h - 1 - r, r, "fill", fill_color)
+    g:circle(x + w - 1 - r, y + h - 1 - r, r, "fill", fill_color)
+    -- 内缩圆角：整体内移 inset，圆心与外圆角同心（右下用 w-1-r / h-1-r），
     -- 半径 ri = r - inset，留下均匀 inset 宽的边框。
     g:rect(x + r, y + inset, w - r * 2, h - inset * 2, "fill", inset_color)
     g:rect(x + inset, y + r, w - inset * 2, h - r * 2, "fill", inset_color)
     g:circle(x + r, y + r, ri, "fill", inset_color)
-    g:circle(x + w - r, y + r, ri, "fill", inset_color)
-    g:circle(x + r, y + h - r, ri, "fill", inset_color)
-    g:circle(x + w - r, y + h - r, ri, "fill", inset_color)
+    g:circle(x + w - 1 - r, y + r, ri, "fill", inset_color)
+    g:circle(x + r, y + h - 1 - r, ri, "fill", inset_color)
+    g:circle(x + w - 1 - r, y + h - 1 - r, ri, "fill", inset_color)
   end
 end
 

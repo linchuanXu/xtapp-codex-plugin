@@ -92,9 +92,9 @@ local function draw_button_matte(g, x, y, width, height)
   g:rect(x + radius, y, width - radius * 2, height, "fill", 0)
   g:rect(x, y + radius, width, height - radius * 2, "fill", 0)
   g:circle(x + radius, y + radius, radius, "fill", 0)
-  g:circle(x + width - radius, y + radius, radius, "fill", 0)
-  g:circle(x + radius, y + height - radius, radius, "fill", 0)
-  g:circle(x + width - radius, y + height - radius, radius, "fill", 0)
+  g:circle(x + width - 1 - radius, y + radius, radius, "fill", 0)
+  g:circle(x + radius, y + height - 1 - radius, radius, "fill", 0)
+  g:circle(x + width - 1 - radius, y + height - 1 - radius, radius, "fill", 0)
 end
 
 local function draw_menu_action(g, y, asset)

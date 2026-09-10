@@ -1031,7 +1031,7 @@ local function fill_pill(g, x, y, w, h, color)
   local r = math.floor(h / 2)
   g:rect(x + r, y, w - 2 * r, h, "fill", color)
   g:circle(x + r, y + r, r, "fill", color)
-  g:circle(x + w - r, y + r, r, "fill", color)
+  g:circle(x + w - 1 - r, y + r, r, "fill", color)
 end
 
 local function outline_pill(g, x, y, w, h, color, background)
