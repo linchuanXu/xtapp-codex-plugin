@@ -1,6 +1,6 @@
 ---
 name: xtapp-contracts
-description: Use the public XTApp Lua contract and public app templates while working in Codex.
+description: Use the public XTApp Lua contract and public app templates. Use when writing XTApp Lua, looking up on_input/g:text/manifest, or copying a store template.
 ---
 
 Before answering or changing XTApp code, classify the request as `input`, `graphics`, `runtime`, `manifest`, `network`, `assets`, `studio-preview`, or `overview`. Then call `search_xtapp_knowledge` with the matching topic/API terms and use the returned `topic`, `api`, `version`, `source`, `content`, and `example` fields in the answer or implementation. If the search returns no authoritative match, say that the behavior is unknown and request verification; never invent an API from memory.

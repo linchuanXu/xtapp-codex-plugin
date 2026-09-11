@@ -5,7 +5,13 @@
   "agentEntrypoint": "AGENTS.md",
   "distributionRepository": "https://github.com/linchuanXu/xtapp-codex-plugin",
   "distributionStatus": "published-git-marketplace",
-  "supportedHosts": ["codex"],
+  "supportedHosts": ["codex", "cursor"],
+  "cursor": {
+    "previewSurface": "builtin-browser",
+    "mcp": "bundled xtapp_studio stdio",
+    "install": "docs/INSTALL_CURSOR.md",
+    "userConfigWriter": "scripts/cursor-mcp-config.mjs"
+  },
   "marketplace": {
     "name": "xtapp-codex-plugin-github",
     "gitSource": "linchuanXu/xtapp-codex-plugin",
@@ -14,7 +20,7 @@
   },
   "plugin": {
     "name": "xtapp-codex-plugin",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "path": ".",
     "displayName": "XTApp Studio",
     "selector": "xtapp-codex-plugin@xtapp-codex-plugin-github",

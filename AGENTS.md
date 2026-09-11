@@ -1,7 +1,8 @@
 # XTApp plugin distribution — agent entrypoint
 
-This repository is designed to be operated by an agent. Codex is the only
-supported host in this revision.
+This repository is designed to be operated by an agent. Codex is the
+marketplace host. Cursor consumes the **same** bundled `xtapp_studio`
+MCP and opens the official preview page in its built-in browser.
 
 Canonical distribution repository:
 `https://github.com/linchuanXu/xtapp-codex-plugin`.
@@ -10,41 +11,51 @@ Canonical distribution repository:
 
 Choose exactly one lane:
 
-1. **Install or set up** — follow "Install into Codex" below.
-2. **Inspect or explain** — read `README.md`, `release-manifest.json`, the
-   marketplace manifest, and the plugin manifest. Do not change configuration.
-3. **Uninstall** — follow `docs/INSTALL_CODEX.md#uninstall`.
-4. **Refresh or release** — follow "Maintainer lane" below.
+1. **Install into Codex** — Codex Desktop / Codex CLI with
+   `codex plugin marketplace`.
+2. **Install into Cursor** — register the same stdio MCP; preview uses
+   Cursor's built-in browser. No marketplace, no `hosts/cursor` payload.
+3. **Inspect or explain** — read `README.md`, `release-manifest.json`,
+   the marketplace manifest, and the plugin manifest. Do not change
+   configuration.
+4. **Uninstall** — Codex: `docs/INSTALL_CODEX.md#uninstall`. Cursor:
+   `docs/INSTALL_CURSOR.md#uninstall`.
+5. **Refresh or release** — follow "Maintainer lane" below.
+
+If the user names a host, use that lane. Otherwise: Codex when
+`codex plugin marketplace list --json` works; Cursor when this session
+is Cursor.
 
 Do not scan private product sources unless the selected lane explicitly
 requires a maintainer refresh.
 
 ## Architecture to preserve
 
-The plugin bundles its MCP. It does not replace XTApp Studio:
+The plugin bundles a local stdio MCP. It does not replace XTApp Studio:
 
 ```text
-Codex plugin
-  -> bundled xtapp_studio MCP
-  -> XTApp Studio preview page
+Codex: plugin marketplace + user opens previewUrl
+Cursor: same xtapp_studio MCP + built-in browser opens previewUrl
+  -> official Studio preview page (EventSource)
   -> Lua Worker / device simulator
 ```
 
-The user writes locally and previews on one official webpage. Call
-`run_xtapp_preview` with the absolute current worktree `projectDir`.
-Give the exact `previewUrl`. If a login page appears, the user logs in
-and returns to that URL. Keep it open. The widget is not the simulator.
-`need_login_or_open_page` / `not_connected` means the page is not
-reachable or the session does not match, not a successful run. After
-code changes, call `run_xtapp_preview` again; do not assume the watcher
-survived. Official Studio may already have another project open; sync
-creates or reuses a Codex project for this worktree and must not
-overwrite the user's other apps. Preview transport batches internally;
-do not shrink an app to fit a single HTTP cap. Nested
-`domain/` Lua is synced. Click the simulator with coordinates;
-do not add a Lua testing slot just to tap. Inspect templates with
-`get_xtapp_store_template`, then copy a runnable tree with
-`copy_xtapp_store_template`.
+Shared payload: `mcp/`, `skills/`, `knowledge/`, `catalog/`, `widget/`.
+The MCP Apps widget is Codex-only. The simulator is always the official
+preview page.
+
+Call `run_xtapp_preview` with the absolute current worktree `projectDir`.
+Use the exact `previewUrl`. Cursor must open that URL with the host
+browser MCP (`browser_tabs` / `browser_navigate`) and keep the tab there.
+Codex gives the URL to the user. If a login page appears, stop and let
+the user sign in; do not fill credentials. Then return to the same URL.
+Do not click the simulator DOM; use `send_xtapp_preview_input` and
+`send_xtapp_preview_touch`. `need_login_or_open_page` / `not_connected`
+is not success. After code changes, call `run_xtapp_preview` again.
+Official Studio may already have another project open; sync creates or
+reuses a plugin-owned project for this worktree and must not overwrite
+the user's other apps. Nested `domain/` Lua is synced. Inspect templates
+with `get_xtapp_store_template`, then copy with `copy_xtapp_store_template`.
 
 ## Install into Codex
 
@@ -151,12 +162,79 @@ Report:
 
 Never report "preview works" when only package installation was verified.
 
+## Install into Cursor
+
+Cursor has no `codex plugin marketplace` and no second plugin payload
+directory. An explicit request to install authorizes merging
+`xtapp_studio` into Cursor MCP config and linking the two skills. It does
+not authorize source edits, Git pushes, or deleting unrelated MCP
+servers.
+
+### 1. Preflight
+
+Need Node.js on PATH, a checkout that contains `mcp/server.bundle.mjs`,
+and Cursor's built-in browser. Do not invent a remote MCP URL. Do not
+start a second preview server. Do not run Codex marketplace commands.
+
+### 2. Register the bundled MCP
+
+From this repository root, upsert only `mcpServers.xtapp_studio` into
+the user Cursor config:
+
+```bash
+node scripts/cursor-mcp-config.mjs --write-user
+```
+
+That writes an absolute `node …/mcp/server.bundle.mjs` into
+`~/.cursor/mcp.json` and leaves other servers untouched.
+
+If this plugin is a subdirectory of a larger workspace, point args at
+`<plugin-dir>/mcp/server.bundle.mjs` instead of using `--write-user`.
+
+Reload MCP in Cursor Settings. Start a **new Agent chat**.
+
+### 3. Skills
+
+Symlink `skills/xtapp-contracts` and `skills/xtapp-open-preview` into
+`~/.cursor/skills/` or the project's `.cursor/skills/`. Do not rewrite
+the skill bodies.
+
+### 4. Open the official preview page
+
+Call `run_xtapp_preview` with the absolute current worktree. Open the
+exact `previewUrl` with Cursor's built-in browser (`browser_navigate`)
+and keep that tab on that URL. If a login page appears, stop and ask the
+user to sign in in that tab; do not fill credentials. Then return to the
+same URL. Confirm with `get_xtapp_preview_status`. Do not click the
+simulator DOM. The Codex widget will not appear; that is expected.
+
+### 5. Verify
+
+Cursor Settings → MCP lists enabled `xtapp_studio`. After a new Agent
+chat, a smoke is: `run_xtapp_preview` → built-in browser opens
+`previewUrl` → `get_xtapp_preview_status` is not `not_connected`.
+
+### 6. Hand back
+
+Report:
+
+- whether `~/.cursor/mcp.json` was upserted;
+- that only `xtapp_studio` was changed;
+- whether skills were linked;
+- whether the built-in browser opened the official preview URL;
+- whether login is still pending;
+- that a new Agent chat is needed after MCP reload.
+
+Never report "preview works" when only MCP registration was verified.
+
 ## Safety boundaries
 
 - Lua execution, asset pipelines, and device simulation belong in
   XTApp Studio.
 - Treat `.codex-plugin/plugin.json` and
-  `.agents/plugins/marketplace.json` as distribution payloads.
+  `.agents/plugins/marketplace.json` as Codex distribution payloads.
+- Cursor is a consumer of the same MCP plus the host browser, not a
+  second host directory.
 - Never expose or commit credentials, Codex auth state, plugin caches,
   logs, `.env`, or smoke-test artifacts.
 - There is no remote MCP dependency or fallback.
@@ -167,8 +245,9 @@ Never report "preview works" when only package installation was verified.
 
 Enter only when the user asks to refresh, validate, or release:
 
-1. Read `README.md`, `release-manifest.json`, and
-   `docs/INSTALL_CODEX.md#unpublished-candidate-smoke`.
+1. Read `README.md`, `release-manifest.json`,
+   `docs/INSTALL_CODEX.md#unpublished-candidate-smoke`, and
+   `docs/INSTALL_CURSOR.md`.
 2. Refresh only the reviewed public payload files when the user provides
    maintainer-local source directories through environment variables.
 3. Run `npm run check` and `npm run build:mcp` when MCP sources change.
@@ -178,7 +257,7 @@ Enter only when the user asks to refresh, validate, or release:
 
 ## Host directory convention
 
-This revision ships one Codex payload at the repository root:
+Codex marketplace payload stays at the repository root:
 
 - `.codex-plugin/plugin.json`
 - `.mcp.json`
@@ -186,6 +265,11 @@ This revision ships one Codex payload at the repository root:
 - `mcp/`
 - `widget/`
 
-Add a second host directory only when a validated host-specific package
+Do not nest that payload under `plugins/codex/`. Do not add
+`hosts/cursor/` or treat `.cursor/mcp.json` as a Cursor plugin. Cursor
+install is MCP registration plus the portable skills; preview opens in
+the built-in browser.
+
+Add another host directory only when a validated host-specific package
 exists. A host with no reviewed payload is refused rather than packaged
 with guessed conventions.

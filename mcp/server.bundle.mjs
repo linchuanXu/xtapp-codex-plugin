@@ -36494,7 +36494,7 @@ var StdioServerTransport = class {
 };
 
 // mcp/previewReady.mjs
-var PLUGIN_VERSION = "0.1.4";
+var PLUGIN_VERSION = "0.1.5";
 var PREVIEW_RUN_WAIT_MS = 3e4;
 var PREVIEW_QUICK_WAIT_MS = 4e3;
 function requireProjectDir(projectDir) {
@@ -37125,7 +37125,7 @@ var WIDGET_URI = "ui://widget/xtapp/studio.html";
 var sourceWatchers = /* @__PURE__ */ new Map();
 var lastPushed = /* @__PURE__ */ new Map();
 var server = new McpServer({ name: "xtapp-studio", version: PLUGIN_VERSION }, {
-  instructions: "Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates."
+  instructions: "Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Open the exact previewUrl: Cursor must use its built-in browser MCP and keep that tab open; other hosts give the URL to the user. If a login page appears, stop and let the user sign in; do not fill credentials. Do not click the simulator DOM; use send_xtapp_preview_input and send_xtapp_preview_touch. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates."
 });
 function textResult(text, details = {}) {
   return { content: [{ type: "text", text }], structuredContent: details };
@@ -37410,16 +37410,16 @@ server.registerTool("run_xtapp_preview", { description: "Ensure the official Stu
   const result = await ensurePreviewReady({ projectDir, device });
   return textResult([result.message || JSON.stringify(result), formatDroppedAssets(result.dropped)].filter(Boolean).join("\n"), result);
 });
-server.registerTool("sync_xtapp_preview_source", { description: "Read the current Codex worktree source and make it available to the official Studio preview.", inputSchema: { projectDir: external_exports.string().trim() } }, async ({ projectDir }) => {
+server.registerTool("sync_xtapp_preview_source", { description: "Read the current local worktree source and make it available to the official Studio preview.", inputSchema: { projectDir: external_exports.string().trim() } }, async ({ projectDir }) => {
   const result = await syncProjectSource(projectDir);
   return textResult(describeSourceSync(result), result);
 });
-server.registerTool("watch_xtapp_preview", { description: "Watch a Codex worktree and automatically synchronize source changes to the official Studio preview.", inputSchema: { projectDir: external_exports.string().trim(), enabled: external_exports.boolean().optional() } }, async ({ projectDir, enabled = true }) => {
+server.registerTool("watch_xtapp_preview", { description: "Watch a local worktree and automatically synchronize source changes to the official Studio preview.", inputSchema: { projectDir: external_exports.string().trim(), enabled: external_exports.boolean().optional() } }, async ({ projectDir, enabled = true }) => {
   const root = resolve2(projectDir);
   if (!enabled) return textResult(JSON.stringify({ status: stopSourceWatcher(root) ? "stopped" : "not_watching", projectDir: root }), { status: "stopped", projectDir: root });
   await syncProjectSource(root);
   startSourceWatcher(root);
-  return textResult(`\u5DF2\u5F00\u59CB\u76D1\u542C ${root}\uFF1BCodex \u4FDD\u5B58 Lua/Manifest \u540E\uFF0CStudio \u4F1A\u81EA\u52A8\u540C\u6B65\u6E90\u7801\u5E76\u5237\u65B0\u9884\u89C8\u3002`, { status: "watching", projectDir: root, intervalMs: 1e3 });
+  return textResult(`\u5DF2\u5F00\u59CB\u76D1\u542C ${root}\uFF1B\u4FDD\u5B58 Lua/Manifest \u540E\uFF0CStudio \u4F1A\u81EA\u52A8\u540C\u6B65\u6E90\u7801\u5E76\u5237\u65B0\u9884\u89C8\u3002`, { status: "watching", projectDir: root, intervalMs: 1e3 });
 });
 server.registerTool("get_xtapp_preview_status", { description: "Read whether the official Studio preview page is open, which app it is showing, and the exact previewUrl to open.", inputSchema: {} }, async () => {
   const result = await bridgeRequest("/preview/status", {}, "GET");

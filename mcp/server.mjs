@@ -31,7 +31,7 @@ const sourceWatchers = new Map()
 const lastPushed = new Map()
 
 const server = new McpServer({ name: 'xtapp-studio', version: PLUGIN_VERSION }, {
-  instructions: 'Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates.'
+  instructions: 'Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Open the exact previewUrl: Cursor must use its built-in browser MCP and keep that tab open; other hosts give the URL to the user. If a login page appears, stop and let the user sign in; do not fill credentials. Do not click the simulator DOM; use send_xtapp_preview_input and send_xtapp_preview_touch. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates.'
 })
 
 function textResult(text, details = {}) {
@@ -346,17 +346,17 @@ server.registerTool('run_xtapp_preview', { description: 'Ensure the official Stu
   return textResult([result.message || JSON.stringify(result), formatDroppedAssets(result.dropped)].filter(Boolean).join('\n'), result)
 })
 
-server.registerTool('sync_xtapp_preview_source', { description: 'Read the current Codex worktree source and make it available to the official Studio preview.', inputSchema: { projectDir: z.string().trim() } }, async ({ projectDir }) => {
+server.registerTool('sync_xtapp_preview_source', { description: 'Read the current local worktree source and make it available to the official Studio preview.', inputSchema: { projectDir: z.string().trim() } }, async ({ projectDir }) => {
   const result = await syncProjectSource(projectDir)
   return textResult(describeSourceSync(result), result)
 })
 
-server.registerTool('watch_xtapp_preview', { description: 'Watch a Codex worktree and automatically synchronize source changes to the official Studio preview.', inputSchema: { projectDir: z.string().trim(), enabled: z.boolean().optional() } }, async ({ projectDir, enabled = true }) => {
+server.registerTool('watch_xtapp_preview', { description: 'Watch a local worktree and automatically synchronize source changes to the official Studio preview.', inputSchema: { projectDir: z.string().trim(), enabled: z.boolean().optional() } }, async ({ projectDir, enabled = true }) => {
   const root = resolve(projectDir)
   if (!enabled) return textResult(JSON.stringify({ status: stopSourceWatcher(root) ? 'stopped' : 'not_watching', projectDir: root }), { status: 'stopped', projectDir: root })
   await syncProjectSource(root)
   startSourceWatcher(root)
-  return textResult(`已开始监听 ${root}；Codex 保存 Lua/Manifest 后，Studio 会自动同步源码并刷新预览。`, { status: 'watching', projectDir: root, intervalMs: 1000 })
+  return textResult(`已开始监听 ${root}；保存 Lua/Manifest 后，Studio 会自动同步源码并刷新预览。`, { status: 'watching', projectDir: root, intervalMs: 1000 })
 })
 
 server.registerTool('get_xtapp_preview_status', { description: 'Read whether the official Studio preview page is open, which app it is showing, and the exact previewUrl to open.', inputSchema: {} }, async () => {

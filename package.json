@@ -1,11 +1,11 @@
 {
   "name": "xtapp-codex-plugin",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check mcp/server.mjs && node --check mcp/previewSession.mjs && node --check mcp/previewReady.mjs && node --check mcp/previewBridgeClient.mjs && node --check mcp/projectSnapshot.mjs && node --check mcp/previewSourceSync.mjs && node --check mcp/previewTap.mjs && node --check mcp/storeTemplate.mjs && node --check scripts/sync-knowledge.mjs",
-    "test": "node --test mcp/*.test.mjs",
+    "check": "node --check mcp/server.mjs && node --check mcp/previewSession.mjs && node --check mcp/previewReady.mjs && node --check mcp/previewBridgeClient.mjs && node --check mcp/projectSnapshot.mjs && node --check mcp/previewSourceSync.mjs && node --check mcp/previewTap.mjs && node --check mcp/storeTemplate.mjs && node --check scripts/sync-knowledge.mjs && node --check scripts/cursor-mcp-config.mjs",
+    "test": "node --test mcp/*.test.mjs scripts/cursor-mcp-config.test.mjs",
     "build:mcp": "esbuild mcp/server.mjs --bundle --platform=node --format=esm --outfile=mcp/server.bundle.mjs",
     "sync:knowledge": "node scripts/sync-knowledge.mjs",
     "sync:catalog": "node scripts/sync-public-catalog.mjs"

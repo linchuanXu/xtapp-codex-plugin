@@ -2,7 +2,7 @@
 
 ## 作用
 
-用户在本地写 XTApp，打开一个官网预览页看效果，改本地代码后页面更新。Studio 是项目和 Lua Worker 的运行 authority。Codex 插件通过官网 `/preview/*` 排队命令。模拟器画面在官网预览页，不在右侧 widget。
+用户在本地写 XTApp，打开一个官网预览页看效果，改本地代码后页面更新。Studio 是项目和 Lua Worker 的运行 authority。插件通过官网 `/preview/*` 排队命令。模拟器画面在官网预览页，不在 Codex 右侧 widget。
 
 `run_xtapp_preview` 必须带当前 worktree 的绝对路径 `projectDir`。它会读取本机 Lua、Manifest、data、lang，以及 `assets|raw` 下 `.xic` 与 `.png/.jpg/.jpeg/.webp`。单次 HTTP 会限制素材条数，插件会自动分批 `POST` 再 `PATCH` 合并，工程可以有更多素材。不要为了预览桥去删图、改字模或拆工程。官网会为这个 worktree **新建或复用独立项目**，不会覆盖用户正在写的其他工程（例如斗地主）。不要说插件不读文件系统。不要省略 `projectDir` 去跑官网里已经打开的项目。
 
@@ -10,10 +10,12 @@
 
 ## 启动
 
-1. 调用 `run_xtapp_preview`，把返回的 `previewUrl` 原样交给用户。
-2. 请用户打开这条链接。如果出现登录页，先登录，再回到同一条地址，并保持打开。
-3. 该地址必须带插件 session。不要只打开 `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`。
-4. 用户说打开后，再调 `get_xtapp_preview_status`。仍是 `need_login_or_open_page` 时，停下来，把同一条 URL 再给一次。
+1. 调用 `run_xtapp_preview`，拿到带插件 session 的 `previewUrl`。不要只打开 `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`。
+2. 打开这条 URL，并保持打开。打开方式取决于宿主：
+   - **Cursor：** 用内置浏览器 MCP（`browser_tabs` / `browser_navigate`）打开 `previewUrl`，不要请用户另开 Chrome。出现登录页就停下，请用户在这个内置页里登录，Agent 不填账号密码。登录后再回到同一条 `previewUrl`。
+   - **Codex 或没有浏览器 MCP 的宿主：** 把 `previewUrl` 原样交给用户打开。出现登录页就先登录，再回到同一条地址。
+3. 再调 `get_xtapp_preview_status`。仍是 `need_login_or_open_page` 时，停下来，用同一条 URL 再打开一次。
+4. 不要用浏览器去点模拟器 DOM。按键走 `send_xtapp_preview_input`，点选走 `send_xtapp_preview_touch`。设备截图走 `capture_xtapp_preview`。浏览器截图只能确认预览页已打开，不能代替模拟器截图。
 5. MCP 重启后 session 复用本机 `~/.xtapp/codex-preview-session`，同一 URL 仍然有效。文件监听不会跨进程存活，每次预览都要再走一遍就绪检查。
 
 `not_connected` / `need_login_or_open_page` 表示预览页没开、没登录，或打开的 URL 不是插件返回的那条。不要报成功。
@@ -41,8 +43,8 @@
 - `capture_xtapp_preview`：截当前模拟器 PNG；优先用命令结果里的 `screenshot.dataUrl`。
 - `/preview/context`：回传受限 Manifest、Lua 片段和最近日志。
 
-右侧 widget 只报连接、应用名和 previewUrl，不是模拟器。
+右侧 widget 只报连接、应用名和 previewUrl，不是模拟器。Cursor 内置浏览器里打开的是同一张官网预览页。
 
 ## 诊断
 
-按键不生效时，先查 `topic=input`，再调用 `inspect_xtapp_preview_context`。不要把 `queued` / `queued_timeout` / `not_connected` / `need_login_or_open_page` / `error` 报成运行成功。装完插件后需要新开一个 Codex 任务才会加载 MCP。
+按键不生效时，先查 `topic=input`，再调用 `inspect_xtapp_preview_context`。不要把 `queued` / `queued_timeout` / `not_connected` / `need_login_or_open_page` / `error` 报成运行成功。装完插件或重载 MCP 后需要新开一轮对话才会加载工具。
