@@ -2,14 +2,24 @@ import { createHash } from 'node:crypto'
 import { readFile, readdir, realpath, stat } from 'node:fs/promises'
 import { basename, join, relative, resolve, sep } from 'node:path'
 
-const MAX_FILES = 400
-const MAX_FILE_BYTES = 256 * 1024
-const MAX_TOTAL_BYTES = 4 * 1024 * 1024
-const MAX_ASSETS = 80
-const MAX_ASSET_BYTES = 2 * 1024 * 1024
-const MAX_TOTAL_ASSET_BYTES = 8 * 1024 * 1024
+export const MAX_FILES = 400
+export const MAX_FILE_BYTES = 256 * 1024
+export const MAX_TOTAL_BYTES = 4 * 1024 * 1024
+export const MAX_ASSETS = 2000
+export const MAX_ASSET_BYTES = 2 * 1024 * 1024
 const TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|scripts)\/[^/]+\.lua|(?:data|lang)\/[^/]+\.(?:tsv|txt|json))$/i
 const ASSET_FILE = /^(?:assets|raw)\/[A-Za-z0-9_-]{1,23}\.(xic|png|jpe?g|webp)$/i
+
+export function snapshotRevision(files = {}, assets = []) {
+  const digest = createHash('sha256')
+    .update(JSON.stringify(Object.entries(files).sort(([a], [b]) => a.localeCompare(b))))
+    .update(JSON.stringify(
+      assets
+        .map(({ path, sha256, bytes }) => ({ path, sha256, bytes }))
+        .sort((a, b) => String(a.path).localeCompare(String(b.path))),
+    ))
+  return digest.digest('hex')
+}
 
 function assetMime(path) {
   const lower = String(path || '').toLowerCase()
@@ -63,7 +73,6 @@ async function collectFiles(root) {
       if (ASSET_FILE.test(path)) {
         if (assets.length >= MAX_ASSETS) { warnings.push(`素材超过 ${MAX_ASSETS} 个，已截断`); continue }
         if (bytes.length > MAX_ASSET_BYTES) { warnings.push(`${path} 超过 ${MAX_ASSET_BYTES} 字节，已跳过`); continue }
-        if (totalAssetBytes + bytes.length > MAX_TOTAL_ASSET_BYTES) { warnings.push(`素材快照超过 ${MAX_TOTAL_ASSET_BYTES} 字节，已截断`); continue }
         totalAssetBytes += bytes.length
         assets.push({ path, key: assetKey(path), mime: assetMime(path), bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), base64: bytes.toString('base64') })
         continue
@@ -88,14 +97,10 @@ export async function readProjectSnapshot(projectDir) {
   if (typeof files['manifest.json'] === 'string') {
     try { manifest = JSON.parse(files['manifest.json']) } catch { warnings.push('manifest.json 不是有效 JSON，预览会显示校验错误') }
   } else warnings.push('未找到 manifest.json')
-  const digest = createHash('sha256')
-    .update(JSON.stringify(Object.entries(files).sort(([a], [b]) => a.localeCompare(b))))
-    .update(JSON.stringify(assets.map(({ path, sha256, bytes }) => ({ path, sha256, bytes })).sort((a, b) => a.path.localeCompare(b.path))))
-    .digest('hex')
   return {
     projectDir: root,
     projectName: basename(root),
-    revision: digest,
+    revision: snapshotRevision(files, assets),
     manifest,
     files,
     assets,

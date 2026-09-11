@@ -39,7 +39,8 @@ reachable or the session does not match, not a successful run. After
 code changes, call `run_xtapp_preview` again; do not assume the watcher
 survived. Official Studio may already have another project open; sync
 creates or reuses a Codex project for this worktree and must not
-overwrite the user's other apps.
+overwrite the user's other apps. Preview transport batches internally;
+do not shrink an app to fit a single HTTP cap.
 
 ## Install into Codex
 

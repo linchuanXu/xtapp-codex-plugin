@@ -36494,7 +36494,7 @@ var StdioServerTransport = class {
 };
 
 // mcp/previewReady.mjs
-var PLUGIN_VERSION = "0.1.2";
+var PLUGIN_VERSION = "0.1.3";
 var PREVIEW_RUN_WAIT_MS = 3e4;
 var PREVIEW_QUICK_WAIT_MS = 4e3;
 function requireProjectDir(projectDir) {
@@ -36599,11 +36599,16 @@ import { basename, join as join2, relative, resolve, sep } from "node:path";
 var MAX_FILES = 400;
 var MAX_FILE_BYTES = 256 * 1024;
 var MAX_TOTAL_BYTES = 4 * 1024 * 1024;
-var MAX_ASSETS = 80;
+var MAX_ASSETS = 2e3;
 var MAX_ASSET_BYTES = 2 * 1024 * 1024;
-var MAX_TOTAL_ASSET_BYTES = 8 * 1024 * 1024;
 var TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|scripts)\/[^/]+\.lua|(?:data|lang)\/[^/]+\.(?:tsv|txt|json))$/i;
 var ASSET_FILE = /^(?:assets|raw)\/[A-Za-z0-9_-]{1,23}\.(xic|png|jpe?g|webp)$/i;
+function snapshotRevision(files = {}, assets = []) {
+  const digest = createHash("sha256").update(JSON.stringify(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)))).update(JSON.stringify(
+    assets.map(({ path, sha256, bytes }) => ({ path, sha256, bytes })).sort((a, b) => String(a.path).localeCompare(String(b.path)))
+  ));
+  return digest.digest("hex");
+}
 function assetMime(path) {
   const lower = String(path || "").toLowerCase();
   if (lower.endsWith(".xic")) return "application/x-xic";
@@ -36664,10 +36669,6 @@ async function collectFiles(root) {
           warnings.push(`${path} \u8D85\u8FC7 ${MAX_ASSET_BYTES} \u5B57\u8282\uFF0C\u5DF2\u8DF3\u8FC7`);
           continue;
         }
-        if (totalAssetBytes + bytes.length > MAX_TOTAL_ASSET_BYTES) {
-          warnings.push(`\u7D20\u6750\u5FEB\u7167\u8D85\u8FC7 ${MAX_TOTAL_ASSET_BYTES} \u5B57\u8282\uFF0C\u5DF2\u622A\u65AD`);
-          continue;
-        }
         totalAssetBytes += bytes.length;
         assets.push({ path, key: assetKey(path), mime: assetMime(path), bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), base64: bytes.toString("base64") });
         continue;
@@ -36701,11 +36702,10 @@ async function readProjectSnapshot(projectDir) {
       warnings.push("manifest.json \u4E0D\u662F\u6709\u6548 JSON\uFF0C\u9884\u89C8\u4F1A\u663E\u793A\u6821\u9A8C\u9519\u8BEF");
     }
   } else warnings.push("\u672A\u627E\u5230 manifest.json");
-  const digest = createHash("sha256").update(JSON.stringify(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)))).update(JSON.stringify(assets.map(({ path, sha256, bytes }) => ({ path, sha256, bytes })).sort((a, b) => a.path.localeCompare(b.path)))).digest("hex");
   return {
     projectDir: root,
     projectName: basename(root),
-    revision: digest,
+    revision: snapshotRevision(files, assets),
     manifest,
     files,
     assets,
@@ -36715,6 +36715,86 @@ async function readProjectSnapshot(projectDir) {
     assetBytes,
     assetCount: assets.length,
     capturedAt: Date.now()
+  };
+}
+
+// mcp/previewSourceSync.mjs
+var SOURCE_ASSET_BATCH = 80;
+var SOURCE_ASSET_BATCH_BYTES = 4 * 1024 * 1024;
+function splitAssetBatches(assets = [], {
+  maxCount = SOURCE_ASSET_BATCH,
+  maxBytes = SOURCE_ASSET_BATCH_BYTES
+} = {}) {
+  const batches = [];
+  let current = [];
+  let bytes = 0;
+  for (const asset of assets) {
+    const size = Number(asset?.bytes) || 0;
+    if (current.length && (current.length >= maxCount || bytes + size > maxBytes)) {
+      batches.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(asset);
+    bytes += size;
+  }
+  if (current.length || !batches.length) batches.push(current);
+  return batches;
+}
+function sourcePushBodies(snapshot = {}) {
+  const files = snapshot.files && typeof snapshot.files === "object" ? snapshot.files : {};
+  const assets = Array.isArray(snapshot.assets) ? snapshot.assets : [];
+  const assetKeys = assets.map((item) => item.key).filter(Boolean);
+  const batches = splitAssetBatches(assets);
+  return batches.map((batch, index) => {
+    const body = {
+      projectDir: snapshot.projectDir,
+      projectName: snapshot.projectName,
+      pluginVersion: snapshot.pluginVersion,
+      manifest: snapshot.manifest,
+      files: index === 0 ? files : {},
+      assets: batch,
+      assetKeys,
+      warnings: snapshot.warnings || [],
+      fileCount: snapshot.fileCount,
+      assetCount: snapshot.assetCount,
+      capturedAt: snapshot.capturedAt
+    };
+    if (index === 0) body.revision = snapshotRevision(files, batch);
+    return body;
+  });
+}
+async function pushProjectSnapshot(snapshot, request) {
+  const bodies = sourcePushBodies(snapshot);
+  const first = bodies[0];
+  let result = await request("/preview/source", first);
+  if (!result?.revision) {
+    return {
+      ...result,
+      projectDir: snapshot.projectDir,
+      warnings: snapshot.warnings,
+      fileCount: snapshot.fileCount,
+      assetCount: snapshot.assetCount,
+      assetBytes: snapshot.assetBytes
+    };
+  }
+  for (const body of bodies.slice(1)) {
+    result = await request("/preview/source/patch", {
+      baseRevision: result.revision,
+      files: body.files,
+      assets: body.assets,
+      assetKeys: body.assetKeys,
+      warnings: body.warnings
+    });
+    if (!result?.revision) break;
+  }
+  return {
+    ...result,
+    projectDir: snapshot.projectDir,
+    warnings: [.../* @__PURE__ */ new Set([...snapshot.warnings || [], ...result.warnings || []])],
+    fileCount: snapshot.fileCount,
+    assetCount: snapshot.assetCount,
+    assetBytes: snapshot.assetBytes
   };
 }
 
@@ -36974,8 +37054,7 @@ async function bridgeRequest(path, body = {}, method = "POST", timeoutMs = previ
 }
 async function syncProjectSource(projectDir) {
   const snapshot = await readProjectSnapshot(projectDir);
-  const result = await bridgeRequest("/preview/source", snapshot);
-  return { ...result, projectDir: snapshot.projectDir, revision: snapshot.revision, warnings: snapshot.warnings, fileCount: snapshot.fileCount, assetCount: snapshot.assetCount, assetBytes: snapshot.assetBytes };
+  return pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body));
 }
 async function awaitCommand(path, body = {}, waitMs = previewCommandWaitMs(path)) {
   const queued = await bridgeRequest(path, body);
@@ -37038,7 +37117,7 @@ function startSourceWatcher(projectDir) {
       const snapshot = await readProjectSnapshot(projectDir);
       if (snapshot.revision === watcher.lastRevision) return;
       watcher.lastRevision = snapshot.revision;
-      await bridgeRequest("/preview/source", snapshot);
+      await pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body));
     } catch {
     } finally {
       watcher.busy = false;

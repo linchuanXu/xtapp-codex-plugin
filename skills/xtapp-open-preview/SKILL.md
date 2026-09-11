@@ -10,7 +10,7 @@ The user writes XTApp code locally. They open one official webpage to preview it
 1. Call `run_xtapp_preview` with the **absolute current worktree** in `projectDir`. Never omit it. Never preview whatever leftover project is already open on the official page.
 2. Give the user the exact returned `previewUrl`. Ask them to open it. If a login page appears, they should log in and return to that same URL. Keep it open.
 3. If the tool returns `need_login_or_open_page` / `not_connected`, do not claim success. After the user says they opened it, call `get_xtapp_preview_status`. If it is still disconnected, stop and give them the **same** URL again.
-4. After code changes, call `run_xtapp_preview` again with the same `projectDir`. Do not assume the file watcher is still alive after an MCP or process restart.
+4. After code changes, call `run_xtapp_preview` again with the same `projectDir`. Do not assume the file watcher is still alive after an MCP or process restart. Preview sync batches assets internally; do not shrink the project to fit a transport cap.
 
 Official Studio may already have another project open (for example 斗地主). Sync creates or reuses a Codex-owned project for **this** worktree. It must not overwrite the user's other Studio projects.
 

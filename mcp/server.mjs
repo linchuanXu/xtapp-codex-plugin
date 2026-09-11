@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { PLUGIN_VERSION, describePreviewReady, displayNameFromManifest, previewCommandWaitMs, requireProjectDir } from './previewReady.mjs'
 import { loadOrCreatePreviewSession, previewRunPath } from './previewSession.mjs'
 import { readProjectSnapshot } from './projectSnapshot.mjs'
+import { pushProjectSnapshot } from './previewSourceSync.mjs'
 import {
   classifyPreviewBridgeError,
   describeSourceSync,
@@ -253,8 +254,7 @@ async function bridgeRequest(path, body = {}, method = 'POST', timeoutMs = previ
 
 async function syncProjectSource(projectDir) {
   const snapshot = await readProjectSnapshot(projectDir)
-  const result = await bridgeRequest('/preview/source', snapshot)
-  return { ...result, projectDir: snapshot.projectDir, revision: snapshot.revision, warnings: snapshot.warnings, fileCount: snapshot.fileCount, assetCount: snapshot.assetCount, assetBytes: snapshot.assetBytes }
+  return pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body))
 }
 
 async function awaitCommand(path, body = {}, waitMs = previewCommandWaitMs(path)) {
@@ -322,7 +322,7 @@ function startSourceWatcher(projectDir) {
       const snapshot = await readProjectSnapshot(projectDir)
       if (snapshot.revision === watcher.lastRevision) return
       watcher.lastRevision = snapshot.revision
-      await bridgeRequest('/preview/source', snapshot)
+      await pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body))
     } catch { /* The next polling cycle retries transient edits or bridge restarts. */ } finally {
       watcher.busy = false
     }

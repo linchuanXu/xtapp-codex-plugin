@@ -4,7 +4,7 @@
 
 用户在本地写 XTApp，打开一个官网预览页看效果，改本地代码后页面更新。Studio 是项目和 Lua Worker 的运行 authority。Codex 插件通过官网 `/preview/*` 排队命令。模拟器画面在官网预览页，不在右侧 widget。
 
-`run_xtapp_preview` 必须带当前 worktree 的绝对路径 `projectDir`。它会读取本机 Lua、Manifest、data、lang，以及有上限的 `assets|raw` 下 `.xic` 与 `.png/.jpg/.jpeg/.webp`。官网会为这个 worktree **新建或复用独立项目**，不会覆盖用户正在写的其他工程（例如斗地主）。不要说插件不读文件系统。不要省略 `projectDir` 去跑官网里已经打开的项目。
+`run_xtapp_preview` 必须带当前 worktree 的绝对路径 `projectDir`。它会读取本机 Lua、Manifest、data、lang，以及 `assets|raw` 下 `.xic` 与 `.png/.jpg/.jpeg/.webp`。单次 HTTP 会限制素材条数，插件会自动分批 `POST` 再 `PATCH` 合并，工程可以有更多素材。不要为了预览桥去删图、改字模或拆工程。官网会为这个 worktree **新建或复用独立项目**，不会覆盖用户正在写的其他工程（例如斗地主）。不要说插件不读文件系统。不要省略 `projectDir` 去跑官网里已经打开的项目。
 
 所有 `/preview/*` JSON 都是信封：`{ok,data}` 或 `{ok,false,error:{code,message,details}}`。`ok` 只表示这次 HTTP 调用是否按契约完成。预览页没开时仍是 `ok: true`，`data.status: "not_connected"`。
 
@@ -23,6 +23,7 @@
 ## 素材
 
 - 快照里每个素材都带 `key/path/mime/bytes/sha256/base64`。解析不出 key 的条目会出现在 `dropped`，不会被静默丢掉。
+- 超过单次请求条数时，插件继续补发剩余素材；`assetKeys` 是工程完整清单。不要把 80 当成设备或工程上限。
 - `.xic` 原样入库。`.png/.jpg/.webp` 由 Studio 转成 1bpp XIC 和配套 matte。Proxy 不转码。
 - 工具返回文本里如果出现 `未接受：…`，必须告诉用户哪些文件没进去，不要假装同步成功。
 
