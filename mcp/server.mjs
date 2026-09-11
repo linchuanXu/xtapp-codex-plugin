@@ -9,7 +9,9 @@ import { z } from 'zod'
 import { PLUGIN_VERSION, describePreviewReady, displayNameFromManifest, previewCommandWaitMs, requireProjectDir } from './previewReady.mjs'
 import { loadOrCreatePreviewSession, previewRunPath } from './previewSession.mjs'
 import { readProjectSnapshot } from './projectSnapshot.mjs'
-import { pushProjectSnapshot } from './previewSourceSync.mjs'
+import { pushProjectSnapshot, snapshotPushState, withProjectPushLock } from './previewSourceSync.mjs'
+import { tapPreviewTarget } from './previewTap.mjs'
+import { readStoreTemplate, TEMPLATE_GET_NOTE } from './storeTemplate.mjs'
 import {
   classifyPreviewBridgeError,
   describeSourceSync,
@@ -26,6 +28,7 @@ const CATALOG_INDEX = join(ROOT, 'catalog', 'index.json')
 const KNOWLEDGE_INDEX = join(ROOT, 'knowledge', 'index.json')
 const WIDGET_URI = 'ui://widget/xtapp/studio.html'
 const sourceWatchers = new Map()
+const lastPushed = new Map()
 
 const server = new McpServer({ name: 'xtapp-studio', version: PLUGIN_VERSION }, {
   instructions: 'Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates.'
@@ -74,17 +77,7 @@ async function templateFiles(id) {
   const dir = join(STORE_DIR, safeAppId(id))
   const info = await stat(dir).catch(() => null)
   if (!info?.isDirectory()) throw new Error(`公开模板不存在：${id}`)
-  const files = {}
-  const walk = async (current, prefix = '') => {
-    for (const entry of await readdir(current, { withFileTypes: true })) {
-      const relative = join(prefix, entry.name)
-      if (entry.name === 'assets' || entry.name === 'raw' || entry.name.endsWith('.xic')) continue
-      if (entry.isDirectory()) await walk(join(current, entry.name), relative)
-      else if (/\.(lua|json|md|txt|tsv)$/i.test(entry.name)) files[relative] = await readFile(join(current, entry.name), 'utf8')
-    }
-  }
-  await walk(dir)
-  return { dir, files }
+  return readStoreTemplate(dir)
 }
 
 function contractCandidates() {
@@ -193,12 +186,21 @@ server.registerTool('list_xtapp_store_apps', { description: 'List public XTApp a
   return textResult(JSON.stringify(filtered, null, 2), { count: filtered.length, catalogIndexPresent: existsSync(CATALOG_INDEX), templateDirPresent: existsSync(STORE_DIR) })
 })
 
-server.registerTool('get_xtapp_store_template', { description: 'Read a public XTApp app template source bundled in this plugin. Binary assets are intentionally excluded from the source bundle.', inputSchema: { id: z.string().min(1) } }, async ({ id }) => {
+server.registerTool('get_xtapp_store_template', { description: 'Inspect a public XTApp template: text sources plus an asset inventory without binary contents. A runnable copy with art requires copy_xtapp_store_template.', inputSchema: { id: z.string().min(1) } }, async ({ id }) => {
   const template = await templateFiles(id)
-  return textResult(JSON.stringify({ id, files: template.files }, null, 2), { id, fileCount: Object.keys(template.files).length, sourceDir: template.dir })
+  const payload = { id, files: template.files, assets: template.assets, note: TEMPLATE_GET_NOTE }
+  return textResult(JSON.stringify(payload, null, 2), {
+    id,
+    fileCount: Object.keys(template.files).length,
+    assetCount: template.assets.length,
+    assets: template.assets,
+    sourceDir: template.dir,
+    runnableCopy: 'copy_xtapp_store_template',
+    note: TEMPLATE_GET_NOTE,
+  })
 })
 
-server.registerTool('copy_xtapp_store_template', { description: 'Copy a bundled public XTApp app source into a new directory inside the explicitly selected project. The destination must not already exist.', inputSchema: { id: z.string().min(1), projectDir: z.string().trim(), destination: z.string().trim().optional() } }, async ({ id, projectDir, destination }) => {
+server.registerTool('copy_xtapp_store_template', { description: 'Copy a complete public XTApp template, including binary assets, into a new directory inside the explicitly selected project. The destination must not already exist. Use this for a runnable copy; get_xtapp_store_template is inspect-only.', inputSchema: { id: z.string().min(1), projectDir: z.string().trim(), destination: z.string().trim().optional() } }, async ({ id, projectDir, destination }) => {
   const template = await templateFiles(id)
   const base = resolve(projectDir)
   const relativeDestination = String(destination || `templates/${safeAppId(id)}`).trim()
@@ -253,8 +255,17 @@ async function bridgeRequest(path, body = {}, method = 'POST', timeoutMs = previ
 }
 
 async function syncProjectSource(projectDir) {
-  const snapshot = await readProjectSnapshot(projectDir)
-  return pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body))
+  return withProjectPushLock(projectDir, async () => {
+    const snapshot = await readProjectSnapshot(projectDir)
+    const previous = lastPushed.get(snapshot.projectDir)
+    const result = await pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body), { previous })
+    if (result?.revision) {
+      lastPushed.set(snapshot.projectDir, snapshotPushState(snapshot, result.revision))
+      const watcher = sourceWatchers.get(snapshot.projectDir)
+      if (watcher) watcher.lastRevision = snapshot.revision
+    }
+    return result
+  })
 }
 
 async function awaitCommand(path, body = {}, waitMs = previewCommandWaitMs(path)) {
@@ -313,16 +324,14 @@ function stopSourceWatcher(projectDir) {
 }
 
 function startSourceWatcher(projectDir) {
-  stopSourceWatcher(projectDir)
-  const watcher = { stopped: false, timer: null, lastRevision: '' }
+  const existing = sourceWatchers.get(projectDir)
+  if (existing) return existing
+  const watcher = { stopped: false, timer: null, lastRevision: lastPushed.get(projectDir)?.revision || '' }
   watcher.timer = setInterval(async () => {
     if (watcher.stopped || watcher.busy) return
     watcher.busy = true
     try {
-      const snapshot = await readProjectSnapshot(projectDir)
-      if (snapshot.revision === watcher.lastRevision) return
-      watcher.lastRevision = snapshot.revision
-      await pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body))
+      await syncProjectSource(projectDir)
     } catch { /* The next polling cycle retries transient edits or bridge restarts. */ } finally {
       watcher.busy = false
     }
@@ -380,12 +389,15 @@ server.registerTool('get_xtapp_preview_targets', { description: 'Read semantic i
   return textResult(JSON.stringify(result, null, 2), result)
 })
 
-server.registerTool('tap_xtapp_preview_target', { description: 'Tap a semantic interactive target exposed by XTApp Lua; no screen coordinates are required.', inputSchema: { targetId: z.string().min(1).max(120), gesture: z.enum(['tap', 'double_tap', 'long', 'swipe_left', 'swipe_right', 'swipe_up', 'swipe_down']).optional() } }, async ({ targetId, gesture = 'tap' }) => {
-  const result = await awaitCommand('/preview/target', { targetId, gesture })
+server.registerTool('tap_xtapp_preview_target', { description: 'Tap a published preview target by converting its rectangle to a coordinate touch. If the current frame has no targets, use send_xtapp_preview_touch. Apps do not need a Lua testing slot.', inputSchema: { targetId: z.string().min(1).max(120), gesture: z.enum(['tap', 'double_tap', 'long', 'swipe_left', 'swipe_right', 'swipe_up', 'swipe_down']).optional() } }, async ({ targetId, gesture = 'tap' }) => {
+  const result = await tapPreviewTarget({ targetId, gesture }, {
+    getTargets: () => bridgeRequest('/preview/targets', {}, 'GET'),
+    sendTouch: ({ x, y, gesture: nextGesture }) => awaitCommand('/preview/touch', { x, y, gesture: nextGesture }),
+  })
   return textResult(JSON.stringify(result, null, 2), result)
 })
 
-server.registerTool('send_xtapp_preview_touch', { description: 'Send a touch gesture to the active Studio preview using logical device coordinates.', inputSchema: { x: z.number().finite(), y: z.number().finite(), gesture: z.enum(['tap', 'double_tap', 'long', 'swipe_left', 'swipe_right', 'swipe_up', 'swipe_down']).optional() } }, async ({ x, y, gesture = 'tap' }) => {
+server.registerTool('send_xtapp_preview_touch', { description: 'Default way to click the official Studio preview: send a touch gesture using logical device coordinates. Use this unless a published target already has a rectangle.', inputSchema: { x: z.number().finite(), y: z.number().finite(), gesture: z.enum(['tap', 'double_tap', 'long', 'swipe_left', 'swipe_right', 'swipe_up', 'swipe_down']).optional() } }, async ({ x, y, gesture = 'tap' }) => {
   const result = await awaitCommand('/preview/touch', { x, y, gesture })
   return textResult(JSON.stringify(result, null, 2), result)
 })

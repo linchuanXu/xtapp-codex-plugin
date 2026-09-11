@@ -29,11 +29,14 @@
 
 ## 能力
 
-- `run_xtapp_preview`：检查连接 → 同步当前 worktree → 启动或刷新。页没开时只返回 URL。若状态是 `stopped` 或 `error`，改走 `restart`。每次调用会重新挂上 1 秒文件监听。
+- `run_xtapp_preview`：检查连接 → 同步当前 worktree → 启动或刷新。页没开时只返回 URL。若状态是 `stopped` 或 `error`，改走 `restart`。同一 worktree 复用已有文件监听，不会把刚同步完的 revision 立刻再推一遍。
 - `restart_xtapp_preview`：先同步当前 worktree，再强制重新拉起 Lua Worker。必须带 `projectDir`。
 - `sync_xtapp_preview_source`：只同步源码和素材，不启动。注意返回里的 `dropped`。
 - `input`：模拟 `up/down/left/right/ok/back`。
-- `tap_xtapp_preview_target`：只在 Lua 声明了 `__testing_interactions` 时有效；默认模板通常没有。坐标点击用 `send_xtapp_preview_touch`，或让用户点画布。
+- `send_xtapp_preview_touch`：默认点击方式，用逻辑坐标点画面。不要为了点选去改 Lua 增加测试槽。
+- `tap_xtapp_preview_target`：若当前帧公布了带矩形的目标，插件会取其圆心再走坐标点击；没有目标时会明确说明，改用坐标或截图。
+- 嵌套的 `domain/`、`persistence/`、`scripts/` Lua，以及 `data/`、`lang/` 下的 tsv/txt/json 会同步。看起来像源码但路径不合法的文件会出现在 `warnings`，不会被静默丢掉。
+- 同一工程的源码推送串行执行；内容没变会跳过 HTTP。有上次成功 revision 时只 PATCH 变化，冲突则回退全量 POST。
 - `stop`：停止当前 Worker。
 - `capture_xtapp_preview`：截当前模拟器 PNG；优先用命令结果里的 `screenshot.dataUrl`。
 - `/preview/context`：回传受限 Manifest、Lua 片段和最近日志。

@@ -7,6 +7,6 @@ Before answering or changing XTApp code, classify the request as `input`, `graph
 
 For a runtime problem such as “on_input 不生效”, query the contract first, then call `inspect_xtapp_preview_context` to inspect the active project's relevant Lua/Manifest snippets and recent Studio logs. Separate contract facts, project observations, and hypotheses in the response.
 
-Use `list_xtapp_store_apps` to discover public apps, then `get_xtapp_store_template` to inspect a template before adapting it. The public contract is authoritative; do not infer private firmware or editor behavior. After edits, run validation and preview using the available Studio tools.
+Use `list_xtapp_store_apps` to discover public apps, then `get_xtapp_store_template` to inspect text sources and the asset inventory. That tool does not inline binaries. A runnable copy with art requires `copy_xtapp_store_template`; never reconstruct missing `.xic` or images from the inspect result. The public contract is authoritative; do not infer private firmware or editor behavior. After edits, run validation and preview using the available Studio tools.
 
 When the user explicitly asks to bring a public app into the current project, call `copy_xtapp_store_template` with a new destination directory. Never overwrite an existing destination.

@@ -45,7 +45,7 @@ reuses a Codex project for this worktree instead of overwriting it.
 - Plugin: `xtapp-codex-plugin`
 - Display name: `XTApp Studio`
 - Stable plugin selector: `xtapp-codex-plugin@xtapp-codex-plugin-github`
-- Plugin version: `0.1.3`
+- Plugin version: `0.1.4`
 - Distribution: published Git marketplace from `main`
 - Host: Codex only
 - MCP: bundled `xtapp_studio` stdio (`node ./mcp/server.bundle.mjs`)

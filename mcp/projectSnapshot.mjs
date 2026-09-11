@@ -2,13 +2,14 @@ import { createHash } from 'node:crypto'
 import { readFile, readdir, realpath, stat } from 'node:fs/promises'
 import { basename, join, relative, resolve, sep } from 'node:path'
 
-export const MAX_FILES = 400
+export const MAX_FILES = 2000
 export const MAX_FILE_BYTES = 256 * 1024
-export const MAX_TOTAL_BYTES = 4 * 1024 * 1024
 export const MAX_ASSETS = 2000
 export const MAX_ASSET_BYTES = 2 * 1024 * 1024
-const TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|scripts)\/[^/]+\.lua|(?:data|lang)\/[^/]+\.(?:tsv|txt|json))$/i
+export const TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|scripts)\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.lua|(?:data|lang)\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:tsv|txt|json))$/i
 const ASSET_FILE = /^(?:assets|raw)\/[A-Za-z0-9_-]{1,23}\.(xic|png|jpe?g|webp)$/i
+const LOOKS_LIKE_SOURCE = /\.(lua|tsv|txt|json)$/i
+const SILENT_SKIP = /^(?:docs|tmp|prototypes|\.tmp)\//i
 
 export function snapshotRevision(files = {}, assets = []) {
   const digest = createHash('sha256')
@@ -77,9 +78,13 @@ async function collectFiles(root) {
         assets.push({ path, key: assetKey(path), mime: assetMime(path), bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), base64: bytes.toString('base64') })
         continue
       }
-      if (!TEXT_FILE.test(path)) continue
+      if (!TEXT_FILE.test(path)) {
+        if (LOOKS_LIKE_SOURCE.test(path) && !SILENT_SKIP.test(path)) {
+          warnings.push(`${path} 不是可同步的 XTApp 源码路径，已跳过`)
+        }
+        continue
+      }
       if (bytes.length > MAX_FILE_BYTES) { warnings.push(`${path} 超过 ${MAX_FILE_BYTES} 字节，已跳过`); continue }
-      if (totalBytes + bytes.length > MAX_TOTAL_BYTES) { warnings.push(`源码快照超过 ${MAX_TOTAL_BYTES} 字节，已截断`); return }
       totalBytes += bytes.length
       files[path] = bytes.toString('utf8')
     }

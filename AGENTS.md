@@ -40,7 +40,11 @@ code changes, call `run_xtapp_preview` again; do not assume the watcher
 survived. Official Studio may already have another project open; sync
 creates or reuses a Codex project for this worktree and must not
 overwrite the user's other apps. Preview transport batches internally;
-do not shrink an app to fit a single HTTP cap.
+do not shrink an app to fit a single HTTP cap. Nested
+`domain/` Lua is synced. Click the simulator with coordinates;
+do not add a Lua testing slot just to tap. Inspect templates with
+`get_xtapp_store_template`, then copy a runnable tree with
+`copy_xtapp_store_template`.
 
 ## Install into Codex
 

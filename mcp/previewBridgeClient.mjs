@@ -36,12 +36,19 @@ export function describeSourceSync(result = {}) {
   if (result.status === 'not_connected') {
     return [result.message, dropped].filter(Boolean).join('\n')
   }
+  if (result.status === 'unchanged') {
+    return [`源码未变化，revision ${result.revision || ''} 已在预览桥上。`, dropped].filter(Boolean).join('\n')
+  }
   const accepted = `已同步 revision ${result.revision || ''}，接受 ${result.fileCount ?? result.accepted?.files?.length ?? 0} 个文件、${result.assetCount ?? result.accepted?.assets?.length ?? 0} 个素材。`
   return [accepted, dropped].filter(Boolean).join('\n')
 }
 
 export function isFailedCommand(result = {}) {
   return result.ok === false || result.status === 'error' || result.outcome?.status === 'error'
+}
+
+export function isRevisionConflict(error) {
+  return error?.code === 'REVISION_CONFLICT'
 }
 
 export function previewRequestTimeoutMs(path) {

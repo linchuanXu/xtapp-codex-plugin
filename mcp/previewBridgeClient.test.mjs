@@ -5,6 +5,7 @@ import {
   describeSourceSync,
   formatDroppedAssets,
   isFailedCommand,
+  isRevisionConflict,
   previewRequestTimeoutMs,
   unwrapPreviewEnvelope,
 } from './previewBridgeClient.mjs'
@@ -53,4 +54,10 @@ test('failed commands include envelope and outcome errors', () => {
 test('source posts wait two minutes; other posts stay short', () => {
   assert.equal(previewRequestTimeoutMs('/preview/source'), 120_000)
   assert.equal(previewRequestTimeoutMs('/preview/run'), 4_000)
+})
+
+test('revision conflict is a typed error, unchanged sync stays honest', () => {
+  assert.equal(isRevisionConflict({ code: 'REVISION_CONFLICT' }), true)
+  assert.equal(isRevisionConflict({ code: 'PREVIEW_TIMEOUT' }), false)
+  assert.match(describeSourceSync({ status: 'unchanged', revision: 'abc' }), /源码未变化/)
 })

@@ -26766,9 +26766,9 @@ var require_dist = __commonJS({
 });
 
 // mcp/server.mjs
-import { cp, readFile as readFile3, readdir as readdir2, stat as stat2 } from "node:fs/promises";
+import { cp, readFile as readFile4, readdir as readdir3, stat as stat3 } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname as dirname2, join as join3, resolve as resolve2 } from "node:path";
+import { dirname as dirname2, join as join4, resolve as resolve2 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // node_modules/zod/v3/helpers/util.js
@@ -36494,7 +36494,7 @@ var StdioServerTransport = class {
 };
 
 // mcp/previewReady.mjs
-var PLUGIN_VERSION = "0.1.3";
+var PLUGIN_VERSION = "0.1.4";
 var PREVIEW_RUN_WAIT_MS = 3e4;
 var PREVIEW_QUICK_WAIT_MS = 4e3;
 function requireProjectDir(projectDir) {
@@ -36596,13 +36596,14 @@ function previewRunPath(status) {
 import { createHash } from "node:crypto";
 import { readFile as readFile2, readdir, realpath, stat } from "node:fs/promises";
 import { basename, join as join2, relative, resolve, sep } from "node:path";
-var MAX_FILES = 400;
+var MAX_FILES = 2e3;
 var MAX_FILE_BYTES = 256 * 1024;
-var MAX_TOTAL_BYTES = 4 * 1024 * 1024;
 var MAX_ASSETS = 2e3;
 var MAX_ASSET_BYTES = 2 * 1024 * 1024;
-var TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|scripts)\/[^/]+\.lua|(?:data|lang)\/[^/]+\.(?:tsv|txt|json))$/i;
+var TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|scripts)\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.lua|(?:data|lang)\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:tsv|txt|json))$/i;
 var ASSET_FILE = /^(?:assets|raw)\/[A-Za-z0-9_-]{1,23}\.(xic|png|jpe?g|webp)$/i;
+var LOOKS_LIKE_SOURCE = /\.(lua|tsv|txt|json)$/i;
+var SILENT_SKIP = /^(?:docs|tmp|prototypes|\.tmp)\//i;
 function snapshotRevision(files = {}, assets = []) {
   const digest = createHash("sha256").update(JSON.stringify(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)))).update(JSON.stringify(
     assets.map(({ path, sha256, bytes }) => ({ path, sha256, bytes })).sort((a, b) => String(a.path).localeCompare(String(b.path)))
@@ -36673,14 +36674,15 @@ async function collectFiles(root) {
         assets.push({ path, key: assetKey(path), mime: assetMime(path), bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"), base64: bytes.toString("base64") });
         continue;
       }
-      if (!TEXT_FILE.test(path)) continue;
+      if (!TEXT_FILE.test(path)) {
+        if (LOOKS_LIKE_SOURCE.test(path) && !SILENT_SKIP.test(path)) {
+          warnings.push(`${path} \u4E0D\u662F\u53EF\u540C\u6B65\u7684 XTApp \u6E90\u7801\u8DEF\u5F84\uFF0C\u5DF2\u8DF3\u8FC7`);
+        }
+        continue;
+      }
       if (bytes.length > MAX_FILE_BYTES) {
         warnings.push(`${path} \u8D85\u8FC7 ${MAX_FILE_BYTES} \u5B57\u8282\uFF0C\u5DF2\u8DF3\u8FC7`);
         continue;
-      }
-      if (totalBytes + bytes.length > MAX_TOTAL_BYTES) {
-        warnings.push(`\u6E90\u7801\u5FEB\u7167\u8D85\u8FC7 ${MAX_TOTAL_BYTES} \u5B57\u8282\uFF0C\u5DF2\u622A\u65AD`);
-        return;
       }
       totalBytes += bytes.length;
       files[path] = bytes.toString("utf8");
@@ -36715,86 +36717,6 @@ async function readProjectSnapshot(projectDir) {
     assetBytes,
     assetCount: assets.length,
     capturedAt: Date.now()
-  };
-}
-
-// mcp/previewSourceSync.mjs
-var SOURCE_ASSET_BATCH = 80;
-var SOURCE_ASSET_BATCH_BYTES = 4 * 1024 * 1024;
-function splitAssetBatches(assets = [], {
-  maxCount = SOURCE_ASSET_BATCH,
-  maxBytes = SOURCE_ASSET_BATCH_BYTES
-} = {}) {
-  const batches = [];
-  let current = [];
-  let bytes = 0;
-  for (const asset of assets) {
-    const size = Number(asset?.bytes) || 0;
-    if (current.length && (current.length >= maxCount || bytes + size > maxBytes)) {
-      batches.push(current);
-      current = [];
-      bytes = 0;
-    }
-    current.push(asset);
-    bytes += size;
-  }
-  if (current.length || !batches.length) batches.push(current);
-  return batches;
-}
-function sourcePushBodies(snapshot = {}) {
-  const files = snapshot.files && typeof snapshot.files === "object" ? snapshot.files : {};
-  const assets = Array.isArray(snapshot.assets) ? snapshot.assets : [];
-  const assetKeys = assets.map((item) => item.key).filter(Boolean);
-  const batches = splitAssetBatches(assets);
-  return batches.map((batch, index) => {
-    const body = {
-      projectDir: snapshot.projectDir,
-      projectName: snapshot.projectName,
-      pluginVersion: snapshot.pluginVersion,
-      manifest: snapshot.manifest,
-      files: index === 0 ? files : {},
-      assets: batch,
-      assetKeys,
-      warnings: snapshot.warnings || [],
-      fileCount: snapshot.fileCount,
-      assetCount: snapshot.assetCount,
-      capturedAt: snapshot.capturedAt
-    };
-    if (index === 0) body.revision = snapshotRevision(files, batch);
-    return body;
-  });
-}
-async function pushProjectSnapshot(snapshot, request) {
-  const bodies = sourcePushBodies(snapshot);
-  const first = bodies[0];
-  let result = await request("/preview/source", first);
-  if (!result?.revision) {
-    return {
-      ...result,
-      projectDir: snapshot.projectDir,
-      warnings: snapshot.warnings,
-      fileCount: snapshot.fileCount,
-      assetCount: snapshot.assetCount,
-      assetBytes: snapshot.assetBytes
-    };
-  }
-  for (const body of bodies.slice(1)) {
-    result = await request("/preview/source/patch", {
-      baseRevision: result.revision,
-      files: body.files,
-      assets: body.assets,
-      assetKeys: body.assetKeys,
-      warnings: body.warnings
-    });
-    if (!result?.revision) break;
-  }
-  return {
-    ...result,
-    projectDir: snapshot.projectDir,
-    warnings: [.../* @__PURE__ */ new Set([...snapshot.warnings || [], ...result.warnings || []])],
-    fileCount: snapshot.fileCount,
-    assetCount: snapshot.assetCount,
-    assetBytes: snapshot.assetBytes
   };
 }
 
@@ -36833,24 +36755,375 @@ function describeSourceSync(result = {}) {
   if (result.status === "not_connected") {
     return [result.message, dropped].filter(Boolean).join("\n");
   }
+  if (result.status === "unchanged") {
+    return [`\u6E90\u7801\u672A\u53D8\u5316\uFF0Crevision ${result.revision || ""} \u5DF2\u5728\u9884\u89C8\u6865\u4E0A\u3002`, dropped].filter(Boolean).join("\n");
+  }
   const accepted = `\u5DF2\u540C\u6B65 revision ${result.revision || ""}\uFF0C\u63A5\u53D7 ${result.fileCount ?? result.accepted?.files?.length ?? 0} \u4E2A\u6587\u4EF6\u3001${result.assetCount ?? result.accepted?.assets?.length ?? 0} \u4E2A\u7D20\u6750\u3002`;
   return [accepted, dropped].filter(Boolean).join("\n");
 }
 function isFailedCommand(result = {}) {
   return result.ok === false || result.status === "error" || result.outcome?.status === "error";
 }
+function isRevisionConflict(error61) {
+  return error61?.code === "REVISION_CONFLICT";
+}
 function previewRequestTimeoutMs(path) {
   return path === "/preview/source" || path === "/preview/source/patch" || path === "/preview/source/validate" ? PREVIEW_SOURCE_WAIT_MS : PREVIEW_DEFAULT_WAIT_MS;
+}
+
+// mcp/previewSourceSync.mjs
+var SOURCE_ASSET_BATCH = 80;
+var SOURCE_ASSET_BATCH_BYTES = 4 * 1024 * 1024;
+var SOURCE_FILE_BATCH = 200;
+var SOURCE_FILE_BATCH_BYTES = 4 * 1024 * 1024;
+var projectPushLocks = /* @__PURE__ */ new Map();
+function withProjectPushLock(projectDir, fn) {
+  const key = String(projectDir || "");
+  const previous = projectPushLocks.get(key) || Promise.resolve();
+  const run = previous.catch(() => {
+  }).then(fn);
+  projectPushLocks.set(key, run);
+  return run;
+}
+function snapshotPushState(snapshot = {}, serverRevision = "") {
+  return {
+    revision: snapshot.revision,
+    serverRevision,
+    files: snapshot.files && typeof snapshot.files === "object" ? { ...snapshot.files } : {},
+    assetHashes: Object.fromEntries(
+      (Array.isArray(snapshot.assets) ? snapshot.assets : []).filter((item) => item?.key).map((item) => [item.key, item.sha256])
+    )
+  };
+}
+function previousAssetHashes(previous = {}) {
+  if (previous.assetHashes && typeof previous.assetHashes === "object" && !Array.isArray(previous.assetHashes)) {
+    return previous.assetHashes;
+  }
+  return Object.fromEntries(
+    (Array.isArray(previous.assets) ? previous.assets : []).filter((item) => item?.key).map((item) => [item.key, item.sha256])
+  );
+}
+function splitAssetBatches(assets = [], {
+  maxCount = SOURCE_ASSET_BATCH,
+  maxBytes = SOURCE_ASSET_BATCH_BYTES
+} = {}) {
+  const batches = [];
+  let current = [];
+  let bytes = 0;
+  for (const asset of assets) {
+    const size = Number(asset?.bytes) || 0;
+    if (current.length && (current.length >= maxCount || bytes + size > maxBytes)) {
+      batches.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(asset);
+    bytes += size;
+  }
+  if (current.length || !batches.length) batches.push(current);
+  return batches;
+}
+function splitFileBatches(files = {}, {
+  maxCount = SOURCE_FILE_BATCH,
+  maxBytes = SOURCE_FILE_BATCH_BYTES
+} = {}) {
+  const entries = Object.entries(files);
+  if (!entries.length) return [{}];
+  const batches = [];
+  let current = {};
+  let count = 0;
+  let bytes = 0;
+  for (const [path, content] of entries) {
+    const size = Buffer.byteLength(String(content ?? ""), "utf8");
+    if (count && (count >= maxCount || bytes + size > maxBytes)) {
+      batches.push(current);
+      current = {};
+      count = 0;
+      bytes = 0;
+    }
+    current[path] = content;
+    count += 1;
+    bytes += size;
+  }
+  if (count) batches.push(current);
+  return batches;
+}
+function diffSnapshots(previous = {}, next = {}) {
+  const prevFiles = previous.files && typeof previous.files === "object" ? previous.files : {};
+  const nextFiles = next.files && typeof next.files === "object" ? next.files : {};
+  const files = {};
+  const deleteFiles = [];
+  for (const [path, content] of Object.entries(nextFiles)) {
+    if (prevFiles[path] !== content) files[path] = content;
+  }
+  for (const path of Object.keys(prevFiles)) {
+    if (!Object.hasOwn(nextFiles, path)) deleteFiles.push(path);
+  }
+  const prevAssets = previousAssetHashes(previous);
+  const nextAssets = Array.isArray(next.assets) ? next.assets : [];
+  const assets = nextAssets.filter((item) => item?.key && prevAssets[item.key] !== item.sha256);
+  const nextKeys = new Set(nextAssets.map((item) => item.key).filter(Boolean));
+  const deleteAssets = Object.keys(prevAssets).filter((key) => !nextKeys.has(key));
+  return {
+    files,
+    deleteFiles,
+    assets,
+    deleteAssets,
+    fileKeys: Object.keys(nextFiles),
+    assetKeys: nextAssets.map((item) => item.key).filter(Boolean)
+  };
+}
+function catalogOf(snapshot = {}) {
+  const files = snapshot.files && typeof snapshot.files === "object" ? snapshot.files : {};
+  const assets = Array.isArray(snapshot.assets) ? snapshot.assets : [];
+  return {
+    fileKeys: Object.keys(files),
+    assetKeys: assets.map((item) => item.key).filter(Boolean)
+  };
+}
+function sourcePushBodies(snapshot = {}) {
+  const files = snapshot.files && typeof snapshot.files === "object" ? snapshot.files : {};
+  const assets = Array.isArray(snapshot.assets) ? snapshot.assets : [];
+  const { fileKeys, assetKeys } = catalogOf(snapshot);
+  const fileBatches = splitFileBatches(files);
+  const assetBatches = splitAssetBatches(assets);
+  const bodies = [];
+  const firstFiles = fileBatches[0] || {};
+  const firstAssets = assetBatches[0] || [];
+  bodies.push({
+    projectDir: snapshot.projectDir,
+    projectName: snapshot.projectName,
+    pluginVersion: snapshot.pluginVersion,
+    manifest: snapshot.manifest,
+    files: firstFiles,
+    assets: firstAssets,
+    fileKeys,
+    assetKeys,
+    warnings: snapshot.warnings || [],
+    fileCount: snapshot.fileCount,
+    assetCount: snapshot.assetCount,
+    capturedAt: snapshot.capturedAt,
+    revision: snapshotRevision(firstFiles, firstAssets)
+  });
+  for (const batch of fileBatches.slice(1)) {
+    bodies.push({
+      projectDir: snapshot.projectDir,
+      files: batch,
+      assets: [],
+      fileKeys,
+      assetKeys,
+      warnings: snapshot.warnings || []
+    });
+  }
+  for (const batch of assetBatches.slice(1)) {
+    bodies.push({
+      projectDir: snapshot.projectDir,
+      files: {},
+      assets: batch,
+      fileKeys,
+      assetKeys,
+      warnings: snapshot.warnings || []
+    });
+  }
+  return bodies;
+}
+function finishPush(snapshot, result) {
+  return {
+    ...result,
+    projectDir: snapshot.projectDir,
+    warnings: [.../* @__PURE__ */ new Set([...snapshot.warnings || [], ...result?.warnings || []])],
+    fileCount: snapshot.fileCount,
+    assetCount: snapshot.assetCount,
+    assetBytes: snapshot.assetBytes
+  };
+}
+async function pushReplace(snapshot, request) {
+  const bodies = sourcePushBodies(snapshot);
+  const first = bodies[0];
+  let result = await request("/preview/source", first);
+  if (!result?.revision) return finishPush(snapshot, result);
+  for (const body of bodies.slice(1)) {
+    result = await request("/preview/source/patch", {
+      baseRevision: result.revision,
+      files: body.files,
+      assets: body.assets,
+      fileKeys: body.fileKeys,
+      assetKeys: body.assetKeys,
+      warnings: body.warnings
+    });
+    if (!result?.revision) break;
+  }
+  return finishPush(snapshot, result);
+}
+async function pushPatch(snapshot, previous, request) {
+  const diff = diffSnapshots(previous, snapshot);
+  const hasDeletes = diff.deleteFiles.length || diff.deleteAssets.length;
+  if (!Object.keys(diff.files).length && !diff.assets.length && !hasDeletes) {
+    return finishPush(snapshot, {
+      status: "unchanged",
+      revision: previous.serverRevision
+    });
+  }
+  const fileBatches = splitFileBatches(diff.files);
+  const assetBatches = splitAssetBatches(diff.assets);
+  const firstFiles = Object.keys(diff.files).length ? fileBatches[0] || {} : {};
+  const restFiles = Object.keys(diff.files).length ? fileBatches.slice(1) : [];
+  const firstAssets = diff.assets.length ? assetBatches[0] || [] : [];
+  const restAssets = diff.assets.length ? assetBatches.slice(1) : [];
+  let revision = previous.serverRevision;
+  let result = await request("/preview/source/patch", {
+    baseRevision: revision,
+    files: firstFiles,
+    assets: firstAssets,
+    fileKeys: diff.fileKeys,
+    assetKeys: diff.assetKeys,
+    deleteFiles: diff.deleteFiles,
+    deleteAssets: diff.deleteAssets,
+    warnings: snapshot.warnings || []
+  });
+  if (!result?.revision) return finishPush(snapshot, result);
+  revision = result.revision;
+  for (const batch of restFiles) {
+    result = await request("/preview/source/patch", {
+      baseRevision: revision,
+      files: batch,
+      assets: [],
+      fileKeys: diff.fileKeys,
+      assetKeys: diff.assetKeys,
+      warnings: snapshot.warnings || []
+    });
+    if (!result?.revision) return finishPush(snapshot, result);
+    revision = result.revision;
+  }
+  for (const batch of restAssets) {
+    result = await request("/preview/source/patch", {
+      baseRevision: revision,
+      files: {},
+      assets: batch,
+      fileKeys: diff.fileKeys,
+      assetKeys: diff.assetKeys,
+      warnings: snapshot.warnings || []
+    });
+    if (!result?.revision) return finishPush(snapshot, result);
+    revision = result.revision;
+  }
+  return finishPush(snapshot, result);
+}
+async function pushProjectSnapshot(snapshot, request, { previous } = {}) {
+  if (previous?.serverRevision && previous.revision === snapshot.revision) {
+    return finishPush(snapshot, {
+      status: "unchanged",
+      revision: previous.serverRevision
+    });
+  }
+  if (!previous?.serverRevision) return pushReplace(snapshot, request);
+  try {
+    return await pushPatch(snapshot, previous, request);
+  } catch (error61) {
+    if (!isRevisionConflict(error61)) throw error61;
+    return pushReplace(snapshot, request);
+  }
+}
+
+// mcp/previewTap.mjs
+function targetCenter(target = {}) {
+  const x = Number(target.x) || 0;
+  const y = Number(target.y) || 0;
+  const width = Math.max(0, Number(target.width) || 0);
+  const height = Math.max(0, Number(target.height) || 0);
+  return {
+    x: x + Math.floor(width / 2),
+    y: y + Math.floor(height / 2),
+    width,
+    height
+  };
+}
+function resolvePreviewTarget(targets = [], targetId) {
+  const id = String(targetId || "").trim();
+  const list = Array.isArray(targets) ? targets : [];
+  return list.find((item) => item?.id === id) || list.find((item) => String(item?.label || "") === id) || null;
+}
+function describeMissingTarget(targets, targetId) {
+  const list = (Array.isArray(targets) ? targets : []).filter((item) => item?.id);
+  if (!list.length) {
+    return {
+      status: "no_targets",
+      targetId,
+      message: `\u5F53\u524D\u753B\u9762\u6CA1\u6709\u8BED\u4E49\u70B9\u51FB\u76EE\u6807\u300C${targetId}\u300D\u3002\u4E0D\u8981\u4E3A\u6B64\u6539 Lua \u589E\u52A0\u6D4B\u8BD5\u69FD\u3002\u8BF7\u5148 capture_xtapp_preview \u770B\u753B\u9762\uFF0C\u518D\u7528 send_xtapp_preview_touch \u70B9\u5750\u6807\u3002`,
+      interactiveTargets: []
+    };
+  }
+  return {
+    status: "target_not_found",
+    targetId,
+    message: `\u6CA1\u6709\u540D\u4E3A\u300C${targetId}\u300D\u7684\u76EE\u6807\u3002\u5F53\u524D\u53EF\u70B9\uFF1A${list.map((item) => item.id).join("\u3001")}\u3002\u4E5F\u53EF\u4EE5\u6539\u7528 send_xtapp_preview_touch\u3002`,
+    interactiveTargets: list
+  };
+}
+async function tapPreviewTarget({ targetId, gesture = "tap" } = {}, { getTargets, sendTouch } = {}) {
+  const frame = await getTargets();
+  if (!frame || frame.status === "not_connected" || frame.status === "error" || frame.ok === false) return frame;
+  const targets = frame.interactiveTargets || frame.targets || [];
+  const target = resolvePreviewTarget(targets, targetId);
+  if (!target) return { ...frame, ...describeMissingTarget(targets, targetId) };
+  const center = targetCenter(target);
+  const result = await sendTouch({ x: center.x, y: center.y, gesture });
+  return {
+    ...result,
+    input: {
+      type: "touch",
+      x: center.x,
+      y: center.y,
+      gesture,
+      targetId: target.id,
+      label: target.label || target.id
+    }
+  };
+}
+
+// mcp/storeTemplate.mjs
+import { readdir as readdir2, readFile as readFile3, stat as stat2 } from "node:fs/promises";
+import { join as join3, sep as sep2 } from "node:path";
+var TEXT_FILE2 = /\.(lua|json|md|txt|tsv)$/i;
+var BINARY_FILE = /\.(xic|png|jpe?g|webp)$/i;
+var TEMPLATE_GET_NOTE = "\u4EE5\u4E0A\u662F\u6587\u672C\u6E90\u7801\u548C\u7D20\u6750\u6E05\u5355\uFF08\u4E0D\u542B\u4E8C\u8FDB\u5236\u5185\u5BB9\uFF09\u3002\u53EF\u8FD0\u884C\u526F\u672C\u5FC5\u987B\u7528 copy_xtapp_store_template\uFF0C\u4E0D\u8981\u6839\u636E\u672C\u7ED3\u679C\u624B\u5199\u6F0F\u6389\u7684\u56FE\u7247\u6216 XIC\u3002";
+function posixRelative(prefix, name) {
+  return [prefix, name].filter(Boolean).join("/").split(sep2).join("/");
+}
+async function readStoreTemplate(dir) {
+  const files = {};
+  const assets = [];
+  const walk = async (current, prefix = "") => {
+    for (const entry of await readdir2(current, { withFileTypes: true })) {
+      if (entry.name === ".git" || entry.name === "node_modules") continue;
+      const relative2 = posixRelative(prefix, entry.name);
+      const absolute = join3(current, entry.name);
+      if (entry.isDirectory()) {
+        await walk(absolute, relative2);
+        continue;
+      }
+      const info = await stat2(absolute);
+      if (BINARY_FILE.test(entry.name) || relative2.startsWith("assets/") || relative2.startsWith("raw/")) {
+        assets.push({ path: relative2, bytes: info.size });
+        continue;
+      }
+      if (TEXT_FILE2.test(entry.name)) files[relative2] = await readFile3(absolute, "utf8");
+    }
+  };
+  await walk(dir);
+  assets.sort((a, b) => a.path.localeCompare(b.path));
+  return { dir, files, assets };
 }
 
 // mcp/server.mjs
 var ROOT = resolve2(dirname2(fileURLToPath(import.meta.url)), "..");
 var CONTRACT_DIR = process.env.XTAPP_CONTRACT_DIR ? resolve2(process.env.XTAPP_CONTRACT_DIR) : null;
-var STORE_DIR = process.env.XTAPP_CATALOG_SOURCE_DIR ? resolve2(process.env.XTAPP_CATALOG_SOURCE_DIR) : join3(ROOT, "catalog", "templates");
-var CATALOG_INDEX = join3(ROOT, "catalog", "index.json");
-var KNOWLEDGE_INDEX = join3(ROOT, "knowledge", "index.json");
+var STORE_DIR = process.env.XTAPP_CATALOG_SOURCE_DIR ? resolve2(process.env.XTAPP_CATALOG_SOURCE_DIR) : join4(ROOT, "catalog", "templates");
+var CATALOG_INDEX = join4(ROOT, "catalog", "index.json");
+var KNOWLEDGE_INDEX = join4(ROOT, "knowledge", "index.json");
 var WIDGET_URI = "ui://widget/xtapp/studio.html";
 var sourceWatchers = /* @__PURE__ */ new Map();
+var lastPushed = /* @__PURE__ */ new Map();
 var server = new McpServer({ name: "xtapp-studio", version: PLUGIN_VERSION }, {
   instructions: "Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Give the user the exact previewUrl; if login appears they must return to that URL. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates."
 });
@@ -36863,27 +37136,27 @@ function safeAppId(value) {
   return id;
 }
 async function readJson(path) {
-  return JSON.parse(await readFile3(path, "utf8"));
+  return JSON.parse(await readFile4(path, "utf8"));
 }
 async function publicApps() {
   if (!process.env.XTAPP_CATALOG_SOURCE_DIR && existsSync(CATALOG_INDEX)) return readJson(CATALOG_INDEX);
   if (!existsSync(STORE_DIR)) return [];
-  const entries = await readdir2(STORE_DIR, { withFileTypes: true });
+  const entries = await readdir3(STORE_DIR, { withFileTypes: true });
   const result = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const dir = join3(STORE_DIR, entry.name);
-    const manifestPath = join3(dir, "manifest.json");
+    const dir = join4(STORE_DIR, entry.name);
+    const manifestPath = join4(dir, "manifest.json");
     if (!existsSync(manifestPath)) continue;
     try {
       const manifest = await readJson(manifestPath);
-      const readmePath = join3(dir, "README.md");
+      const readmePath = join4(dir, "README.md");
       result.push({
         id: entry.name,
         appId: manifest.app_id || entry.name,
         name: manifest.display_name || manifest.name || entry.name,
         version: manifest.version || null,
-        description: existsSync(readmePath) ? (await readFile3(readmePath, "utf8")).split("\n").find(Boolean) || "" : ""
+        description: existsSync(readmePath) ? (await readFile4(readmePath, "utf8")).split("\n").find(Boolean) || "" : ""
       });
     } catch {
     }
@@ -36891,31 +37164,21 @@ async function publicApps() {
   return result.sort((a, b) => a.id.localeCompare(b.id));
 }
 async function templateFiles(id) {
-  const dir = join3(STORE_DIR, safeAppId(id));
-  const info = await stat2(dir).catch(() => null);
+  const dir = join4(STORE_DIR, safeAppId(id));
+  const info = await stat3(dir).catch(() => null);
   if (!info?.isDirectory()) throw new Error(`\u516C\u5F00\u6A21\u677F\u4E0D\u5B58\u5728\uFF1A${id}`);
-  const files = {};
-  const walk = async (current, prefix = "") => {
-    for (const entry of await readdir2(current, { withFileTypes: true })) {
-      const relative2 = join3(prefix, entry.name);
-      if (entry.name === "assets" || entry.name === "raw" || entry.name.endsWith(".xic")) continue;
-      if (entry.isDirectory()) await walk(join3(current, entry.name), relative2);
-      else if (/\.(lua|json|md|txt|tsv)$/i.test(entry.name)) files[relative2] = await readFile3(join3(current, entry.name), "utf8");
-    }
-  };
-  await walk(dir);
-  return { dir, files };
+  return readStoreTemplate(dir);
 }
 function contractCandidates() {
   if (!CONTRACT_DIR) return [];
   return [
-    join3(CONTRACT_DIR, "SPEC.md"),
-    join3(CONTRACT_DIR, "README.md"),
-    join3(CONTRACT_DIR, "api", "runtime.md"),
-    join3(CONTRACT_DIR, "api", "input.md"),
-    join3(CONTRACT_DIR, "api", "graphics.md"),
-    join3(CONTRACT_DIR, "api", "ui-components.md"),
-    join3(CONTRACT_DIR, "api", "manifest.md")
+    join4(CONTRACT_DIR, "SPEC.md"),
+    join4(CONTRACT_DIR, "README.md"),
+    join4(CONTRACT_DIR, "api", "runtime.md"),
+    join4(CONTRACT_DIR, "api", "input.md"),
+    join4(CONTRACT_DIR, "api", "graphics.md"),
+    join4(CONTRACT_DIR, "api", "ui-components.md"),
+    join4(CONTRACT_DIR, "api", "manifest.md")
   ];
 }
 async function contractSearch(query, limit = 6, topicFilter = "") {
@@ -36925,7 +37188,7 @@ async function contractSearch(query, limit = 6, topicFilter = "") {
   const rows = [];
   for (const path of contractCandidates()) {
     if (!existsSync(path)) continue;
-    const content = await readFile3(path, "utf8");
+    const content = await readFile4(path, "utf8");
     const lines = content.split("\n");
     lines.forEach((line, index) => {
       const lower = line.toLowerCase();
@@ -36985,7 +37248,7 @@ N3(server, "xtapp-studio-widget", WIDGET_URI, {
     "openai/widgetPrefersBorder": true,
     "openai/widgetCSP": { connect_domains: [], resource_domains: ["data:"] }
   }
-}, async () => ({ contents: [{ uri: WIDGET_URI, mimeType: p, text: await readFile3(join3(ROOT, "widget", "index.html"), "utf8") }] }));
+}, async () => ({ contents: [{ uri: WIDGET_URI, mimeType: p, text: await readFile4(join4(ROOT, "widget", "index.html"), "utf8") }] }));
 K3(server, "render_xtapp_studio_widget", {
   title: "Render XTApp Studio Preview",
   description: "Open or refresh the native right-side XTApp Studio preview widget for the active project.",
@@ -37001,11 +37264,20 @@ server.registerTool("list_xtapp_store_apps", { description: "List public XTApp a
   const filtered = query ? apps.filter((app) => JSON.stringify(app).toLowerCase().includes(query.toLowerCase())) : apps;
   return textResult(JSON.stringify(filtered, null, 2), { count: filtered.length, catalogIndexPresent: existsSync(CATALOG_INDEX), templateDirPresent: existsSync(STORE_DIR) });
 });
-server.registerTool("get_xtapp_store_template", { description: "Read a public XTApp app template source bundled in this plugin. Binary assets are intentionally excluded from the source bundle.", inputSchema: { id: external_exports.string().min(1) } }, async ({ id }) => {
+server.registerTool("get_xtapp_store_template", { description: "Inspect a public XTApp template: text sources plus an asset inventory without binary contents. A runnable copy with art requires copy_xtapp_store_template.", inputSchema: { id: external_exports.string().min(1) } }, async ({ id }) => {
   const template = await templateFiles(id);
-  return textResult(JSON.stringify({ id, files: template.files }, null, 2), { id, fileCount: Object.keys(template.files).length, sourceDir: template.dir });
+  const payload = { id, files: template.files, assets: template.assets, note: TEMPLATE_GET_NOTE };
+  return textResult(JSON.stringify(payload, null, 2), {
+    id,
+    fileCount: Object.keys(template.files).length,
+    assetCount: template.assets.length,
+    assets: template.assets,
+    sourceDir: template.dir,
+    runnableCopy: "copy_xtapp_store_template",
+    note: TEMPLATE_GET_NOTE
+  });
 });
-server.registerTool("copy_xtapp_store_template", { description: "Copy a bundled public XTApp app source into a new directory inside the explicitly selected project. The destination must not already exist.", inputSchema: { id: external_exports.string().min(1), projectDir: external_exports.string().trim(), destination: external_exports.string().trim().optional() } }, async ({ id, projectDir, destination }) => {
+server.registerTool("copy_xtapp_store_template", { description: "Copy a complete public XTApp template, including binary assets, into a new directory inside the explicitly selected project. The destination must not already exist. Use this for a runnable copy; get_xtapp_store_template is inspect-only.", inputSchema: { id: external_exports.string().min(1), projectDir: external_exports.string().trim(), destination: external_exports.string().trim().optional() } }, async ({ id, projectDir, destination }) => {
   const template = await templateFiles(id);
   const base = resolve2(projectDir);
   const relativeDestination = String(destination || `templates/${safeAppId(id)}`).trim();
@@ -37053,8 +37325,17 @@ async function bridgeRequest(path, body = {}, method = "POST", timeoutMs = previ
   }
 }
 async function syncProjectSource(projectDir) {
-  const snapshot = await readProjectSnapshot(projectDir);
-  return pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body));
+  return withProjectPushLock(projectDir, async () => {
+    const snapshot = await readProjectSnapshot(projectDir);
+    const previous = lastPushed.get(snapshot.projectDir);
+    const result = await pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body), { previous });
+    if (result?.revision) {
+      lastPushed.set(snapshot.projectDir, snapshotPushState(snapshot, result.revision));
+      const watcher = sourceWatchers.get(snapshot.projectDir);
+      if (watcher) watcher.lastRevision = snapshot.revision;
+    }
+    return result;
+  });
 }
 async function awaitCommand(path, body = {}, waitMs = previewCommandWaitMs(path)) {
   const queued = await bridgeRequest(path, body);
@@ -37108,16 +37389,14 @@ function stopSourceWatcher(projectDir) {
   return true;
 }
 function startSourceWatcher(projectDir) {
-  stopSourceWatcher(projectDir);
-  const watcher = { stopped: false, timer: null, lastRevision: "" };
+  const existing = sourceWatchers.get(projectDir);
+  if (existing) return existing;
+  const watcher = { stopped: false, timer: null, lastRevision: lastPushed.get(projectDir)?.revision || "" };
   watcher.timer = setInterval(async () => {
     if (watcher.stopped || watcher.busy) return;
     watcher.busy = true;
     try {
-      const snapshot = await readProjectSnapshot(projectDir);
-      if (snapshot.revision === watcher.lastRevision) return;
-      watcher.lastRevision = snapshot.revision;
-      await pushProjectSnapshot(snapshot, (path, body) => bridgeRequest(path, body));
+      await syncProjectSource(projectDir);
     } catch {
     } finally {
       watcher.busy = false;
@@ -37168,11 +37447,14 @@ server.registerTool("get_xtapp_preview_targets", { description: "Read semantic i
   const result = await bridgeRequest("/preview/targets", {}, "GET");
   return textResult(JSON.stringify(result, null, 2), result);
 });
-server.registerTool("tap_xtapp_preview_target", { description: "Tap a semantic interactive target exposed by XTApp Lua; no screen coordinates are required.", inputSchema: { targetId: external_exports.string().min(1).max(120), gesture: external_exports.enum(["tap", "double_tap", "long", "swipe_left", "swipe_right", "swipe_up", "swipe_down"]).optional() } }, async ({ targetId, gesture = "tap" }) => {
-  const result = await awaitCommand("/preview/target", { targetId, gesture });
+server.registerTool("tap_xtapp_preview_target", { description: "Tap a published preview target by converting its rectangle to a coordinate touch. If the current frame has no targets, use send_xtapp_preview_touch. Apps do not need a Lua testing slot.", inputSchema: { targetId: external_exports.string().min(1).max(120), gesture: external_exports.enum(["tap", "double_tap", "long", "swipe_left", "swipe_right", "swipe_up", "swipe_down"]).optional() } }, async ({ targetId, gesture = "tap" }) => {
+  const result = await tapPreviewTarget({ targetId, gesture }, {
+    getTargets: () => bridgeRequest("/preview/targets", {}, "GET"),
+    sendTouch: ({ x, y, gesture: nextGesture }) => awaitCommand("/preview/touch", { x, y, gesture: nextGesture })
+  });
   return textResult(JSON.stringify(result, null, 2), result);
 });
-server.registerTool("send_xtapp_preview_touch", { description: "Send a touch gesture to the active Studio preview using logical device coordinates.", inputSchema: { x: external_exports.number().finite(), y: external_exports.number().finite(), gesture: external_exports.enum(["tap", "double_tap", "long", "swipe_left", "swipe_right", "swipe_up", "swipe_down"]).optional() } }, async ({ x, y, gesture = "tap" }) => {
+server.registerTool("send_xtapp_preview_touch", { description: "Default way to click the official Studio preview: send a touch gesture using logical device coordinates. Use this unless a published target already has a rectangle.", inputSchema: { x: external_exports.number().finite(), y: external_exports.number().finite(), gesture: external_exports.enum(["tap", "double_tap", "long", "swipe_left", "swipe_right", "swipe_up", "swipe_down"]).optional() } }, async ({ x, y, gesture = "tap" }) => {
   const result = await awaitCommand("/preview/touch", { x, y, gesture });
   return textResult(JSON.stringify(result, null, 2), result);
 });
