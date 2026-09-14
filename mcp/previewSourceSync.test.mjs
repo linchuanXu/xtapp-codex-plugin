@@ -43,6 +43,22 @@ test('文本文件按条数和体积切批', () => {
   assert.equal(Object.keys(second).length, 1)
 })
 
+test('首包带上磁盘绑定的 cloudProjectId，但不把 docs/ 当源码', () => {
+  const files = { 'manifest.json': '{}', 'index.lua': 'function on_draw() end' }
+  const bodies = sourcePushBodies({
+    files,
+    assets: [],
+    fileCount: 2,
+    assetCount: 0,
+    warnings: [],
+    projectDir: '/tmp/demo',
+    cloudProjectId: '9e97728c-1111-4111-8111-aaaaaaaaaaaa',
+  })
+  assert.equal(bodies[0].cloudProjectId, '9e97728c-1111-4111-8111-aaaaaaaaaaaa')
+  assert.equal(bodies[0].files['docs/studio.cloud.json'], undefined)
+  assert.equal(bodies[0].revision, snapshotRevision(files, [], '9e97728c-1111-4111-8111-aaaaaaaaaaaa'))
+})
+
 test('首包 POST 全量文件，后续 PATCH 只补素材并带完整清单', () => {
   const files = { 'manifest.json': '{}', 'index.lua': 'function on_draw() end' }
   const assets = Array.from({ length: 81 }, (_, index) => asset(index))
@@ -60,6 +76,7 @@ test('首包 POST 全量文件，后续 PATCH 只补素材并带完整清单', (
   assert.equal(bodies[0].assetKeys.length, 81)
   assert.deepEqual(bodies[0].fileKeys.sort(), ['index.lua', 'manifest.json'])
   assert.equal(bodies[0].revision, snapshotRevision(files, bodies[0].assets))
+  assert.equal(bodies[0].cloudProjectId, undefined)
   assert.deepEqual(bodies[1].files, {})
   assert.equal(bodies[1].assets.length, 1)
   assert.deepEqual(bodies[1].assetKeys, bodies[0].assetKeys)

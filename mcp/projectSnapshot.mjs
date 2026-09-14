@@ -10,8 +10,9 @@ export const TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|sc
 const ASSET_FILE = /^(?:assets|raw)\/[A-Za-z0-9_-]{1,23}\.(xic|png|jpe?g|webp)$/i
 const LOOKS_LIKE_SOURCE = /\.(lua|tsv|txt|json)$/i
 const SILENT_SKIP = /^(?:docs|tmp|prototypes|\.tmp)\//i
+const CLOUD_BINDING_PATHS = ['docs/studio.cloud.json', 'studio.cloud.json']
 
-export function snapshotRevision(files = {}, assets = []) {
+export function snapshotRevision(files = {}, assets = [], extra = '') {
   const digest = createHash('sha256')
     .update(JSON.stringify(Object.entries(files).sort(([a], [b]) => a.localeCompare(b))))
     .update(JSON.stringify(
@@ -19,7 +20,33 @@ export function snapshotRevision(files = {}, assets = []) {
         .map(({ path, sha256, bytes }) => ({ path, sha256, bytes }))
         .sort((a, b) => String(a.path).localeCompare(String(b.path))),
     ))
+  if (extra) digest.update(String(extra))
   return digest.digest('hex')
+}
+
+export function parseCloudProjectId(raw) {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return String(raw.cloudProjectId || '').trim()
+  }
+  if (typeof raw !== 'string' || !raw.trim()) return ''
+  try {
+    return parseCloudProjectId(JSON.parse(raw))
+  } catch {
+    return ''
+  }
+}
+
+export async function readCloudProjectId(root) {
+  for (const rel of CLOUD_BINDING_PATHS) {
+    try {
+      const raw = await readFile(join(root, ...rel.split('/')), 'utf8')
+      const id = parseCloudProjectId(raw)
+      if (id) return id
+    } catch {
+      /* missing or unreadable sidecar */
+    }
+  }
+  return ''
 }
 
 function assetMime(path) {
@@ -102,10 +129,11 @@ export async function readProjectSnapshot(projectDir) {
   if (typeof files['manifest.json'] === 'string') {
     try { manifest = JSON.parse(files['manifest.json']) } catch { warnings.push('manifest.json 不是有效 JSON，预览会显示校验错误') }
   } else warnings.push('未找到 manifest.json')
+  const cloudProjectId = await readCloudProjectId(root)
   return {
     projectDir: root,
     projectName: basename(root),
-    revision: snapshotRevision(files, assets),
+    revision: snapshotRevision(files, assets, cloudProjectId),
     manifest,
     files,
     assets,
@@ -115,5 +143,6 @@ export async function readProjectSnapshot(projectDir) {
     assetBytes,
     assetCount: assets.length,
     capturedAt: Date.now(),
+    cloudProjectId,
   }
 }

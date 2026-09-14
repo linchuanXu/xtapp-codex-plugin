@@ -38,6 +38,26 @@ test('只读取允许的 XTApp 文本文件并为内容生成稳定版本', asyn
   }
 })
 
+test('磁盘绑定只作为 sidecar 读出，不会把整个 docs/ 当源码同步', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'xtapp-snapshot-bind-'))
+  try {
+    await mkdir(join(root, 'docs'), { recursive: true })
+    await writeFile(join(root, 'manifest.json'), '{"entry":"index.lua"}\n')
+    await writeFile(join(root, 'index.lua'), 'function on_draw() end\n')
+    await writeFile(join(root, 'docs', 'notes.md'), '# notes\n')
+    await writeFile(join(root, 'docs', 'studio.cloud.json'), '{"cloudProjectId":"9e97728c-1111-4111-8111-aaaaaaaaaaaa"}\n')
+    const snapshot = await readProjectSnapshot(root)
+    assert.equal(snapshot.cloudProjectId, '9e97728c-1111-4111-8111-aaaaaaaaaaaa')
+    assert.equal(snapshot.files['docs/studio.cloud.json'], undefined)
+    assert.equal(snapshot.files['docs/notes.md'], undefined)
+    assert.deepEqual(Object.keys(snapshot.files).sort(), ['index.lua', 'manifest.json'])
+    assert.equal(snapshot.revision, snapshotRevision(snapshot.files, snapshot.assets, snapshot.cloudProjectId))
+    assert.notEqual(snapshot.revision, snapshotRevision(snapshot.files, snapshot.assets))
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('拒绝相对项目路径', async () => {
   await assert.rejects(() => readProjectSnapshot('./project'), /绝对路径/)
 })

@@ -36604,11 +36604,35 @@ var TEXT_FILE = /^(?:manifest\.json|[^/]+\.lua|(?:domain|persistence|scripts)\/[
 var ASSET_FILE = /^(?:assets|raw)\/[A-Za-z0-9_-]{1,23}\.(xic|png|jpe?g|webp)$/i;
 var LOOKS_LIKE_SOURCE = /\.(lua|tsv|txt|json)$/i;
 var SILENT_SKIP = /^(?:docs|tmp|prototypes|\.tmp)\//i;
-function snapshotRevision(files = {}, assets = []) {
+var CLOUD_BINDING_PATHS = ["docs/studio.cloud.json", "studio.cloud.json"];
+function snapshotRevision(files = {}, assets = [], extra = "") {
   const digest = createHash("sha256").update(JSON.stringify(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)))).update(JSON.stringify(
     assets.map(({ path, sha256, bytes }) => ({ path, sha256, bytes })).sort((a, b) => String(a.path).localeCompare(String(b.path)))
   ));
+  if (extra) digest.update(String(extra));
   return digest.digest("hex");
+}
+function parseCloudProjectId(raw) {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return String(raw.cloudProjectId || "").trim();
+  }
+  if (typeof raw !== "string" || !raw.trim()) return "";
+  try {
+    return parseCloudProjectId(JSON.parse(raw));
+  } catch {
+    return "";
+  }
+}
+async function readCloudProjectId(root) {
+  for (const rel of CLOUD_BINDING_PATHS) {
+    try {
+      const raw = await readFile2(join2(root, ...rel.split("/")), "utf8");
+      const id = parseCloudProjectId(raw);
+      if (id) return id;
+    } catch {
+    }
+  }
+  return "";
 }
 function assetMime(path) {
   const lower = String(path || "").toLowerCase();
@@ -36704,10 +36728,11 @@ async function readProjectSnapshot(projectDir) {
       warnings.push("manifest.json \u4E0D\u662F\u6709\u6548 JSON\uFF0C\u9884\u89C8\u4F1A\u663E\u793A\u6821\u9A8C\u9519\u8BEF");
     }
   } else warnings.push("\u672A\u627E\u5230 manifest.json");
+  const cloudProjectId = await readCloudProjectId(root);
   return {
     projectDir: root,
     projectName: basename(root),
-    revision: snapshotRevision(files, assets),
+    revision: snapshotRevision(files, assets, cloudProjectId),
     manifest,
     files,
     assets,
@@ -36716,7 +36741,8 @@ async function readProjectSnapshot(projectDir) {
     totalBytes,
     assetBytes,
     assetCount: assets.length,
-    capturedAt: Date.now()
+    capturedAt: Date.now(),
+    cloudProjectId
   };
 }
 
@@ -36792,7 +36818,8 @@ function snapshotPushState(snapshot = {}, serverRevision = "") {
     files: snapshot.files && typeof snapshot.files === "object" ? { ...snapshot.files } : {},
     assetHashes: Object.fromEntries(
       (Array.isArray(snapshot.assets) ? snapshot.assets : []).filter((item) => item?.key).map((item) => [item.key, item.sha256])
-    )
+    ),
+    cloudProjectId: String(snapshot.cloudProjectId || "")
   };
 }
 function previousAssetHashes(previous = {}) {
@@ -36903,7 +36930,8 @@ function sourcePushBodies(snapshot = {}) {
     fileCount: snapshot.fileCount,
     assetCount: snapshot.assetCount,
     capturedAt: snapshot.capturedAt,
-    revision: snapshotRevision(firstFiles, firstAssets)
+    revision: snapshotRevision(firstFiles, firstAssets, snapshot.cloudProjectId),
+    ...snapshot.cloudProjectId ? { cloudProjectId: snapshot.cloudProjectId } : {}
   });
   for (const batch of fileBatches.slice(1)) {
     bodies.push({
@@ -36958,7 +36986,8 @@ async function pushReplace(snapshot, request) {
 async function pushPatch(snapshot, previous, request) {
   const diff = diffSnapshots(previous, snapshot);
   const hasDeletes = diff.deleteFiles.length || diff.deleteAssets.length;
-  if (!Object.keys(diff.files).length && !diff.assets.length && !hasDeletes) {
+  const bindingChanged = String(snapshot.cloudProjectId || "") !== String(previous.cloudProjectId || "");
+  if (!Object.keys(diff.files).length && !diff.assets.length && !hasDeletes && !bindingChanged) {
     return finishPush(snapshot, {
       status: "unchanged",
       revision: previous.serverRevision
@@ -36979,7 +37008,8 @@ async function pushPatch(snapshot, previous, request) {
     assetKeys: diff.assetKeys,
     deleteFiles: diff.deleteFiles,
     deleteAssets: diff.deleteAssets,
-    warnings: snapshot.warnings || []
+    warnings: snapshot.warnings || [],
+    ...snapshot.cloudProjectId ? { cloudProjectId: snapshot.cloudProjectId } : {}
   });
   if (!result?.revision) return finishPush(snapshot, result);
   revision = result.revision;

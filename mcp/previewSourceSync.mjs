@@ -26,6 +26,7 @@ export function snapshotPushState(snapshot = {}, serverRevision = '') {
         .filter((item) => item?.key)
         .map((item) => [item.key, item.sha256]),
     ),
+    cloudProjectId: String(snapshot.cloudProjectId || ''),
   }
 }
 
@@ -144,7 +145,8 @@ export function sourcePushBodies(snapshot = {}) {
     fileCount: snapshot.fileCount,
     assetCount: snapshot.assetCount,
     capturedAt: snapshot.capturedAt,
-    revision: snapshotRevision(firstFiles, firstAssets),
+    revision: snapshotRevision(firstFiles, firstAssets, snapshot.cloudProjectId),
+    ...(snapshot.cloudProjectId ? { cloudProjectId: snapshot.cloudProjectId } : {}),
   })
   for (const batch of fileBatches.slice(1)) {
     bodies.push({
@@ -202,7 +204,8 @@ async function pushReplace(snapshot, request) {
 async function pushPatch(snapshot, previous, request) {
   const diff = diffSnapshots(previous, snapshot)
   const hasDeletes = diff.deleteFiles.length || diff.deleteAssets.length
-  if (!Object.keys(diff.files).length && !diff.assets.length && !hasDeletes) {
+  const bindingChanged = String(snapshot.cloudProjectId || '') !== String(previous.cloudProjectId || '')
+  if (!Object.keys(diff.files).length && !diff.assets.length && !hasDeletes && !bindingChanged) {
     return finishPush(snapshot, {
       status: 'unchanged',
       revision: previous.serverRevision,
@@ -224,6 +227,7 @@ async function pushPatch(snapshot, previous, request) {
     deleteFiles: diff.deleteFiles,
     deleteAssets: diff.deleteAssets,
     warnings: snapshot.warnings || [],
+    ...(snapshot.cloudProjectId ? { cloudProjectId: snapshot.cloudProjectId } : {}),
   })
   if (!result?.revision) return finishPush(snapshot, result)
   revision = result.revision
