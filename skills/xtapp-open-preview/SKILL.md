@@ -7,7 +7,7 @@ The user writes XTApp code locally. Preview is one official webpage. After local
 
 ## Every preview request
 
-1. Call `run_xtapp_preview` with the **absolute current worktree** in `projectDir`. Never omit it. Never preview whatever leftover project is already open on the official page.
+1. Call `run_xtapp_preview` with the **absolute XTApp project directory** in `projectDir` — the folder that contains `manifest.json`. After a cold start that is often `todo-list/`, not the parent workspace. Never omit it. Never preview whatever leftover project is already open on the official page.
 2. Open the exact returned `previewUrl` (it includes the plugin session). Never open the bare `/studio/preview?preview=1` page.
 3. If the tool returns `need_login_or_open_page` / `not_connected`, do not claim success. Open or re-open the **same** URL, then call `get_xtapp_preview_status`.
 4. After code changes, call `run_xtapp_preview` again with the same `projectDir`. Do not assume the file watcher is still alive after an MCP or process restart. Preview sync batches assets internally; do not shrink the project to fit a transport cap.

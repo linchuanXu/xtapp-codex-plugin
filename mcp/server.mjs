@@ -31,7 +31,7 @@ const sourceWatchers = new Map()
 const lastPushed = new Map()
 
 const server = new McpServer({ name: 'xtapp-studio', version: PLUGIN_VERSION }, {
-  instructions: 'Use XTApp public contract knowledge before guessing APIs. After project changes, call run_xtapp_preview with the absolute current worktree path. Open the exact previewUrl: Cursor must use its built-in browser MCP and keep that tab open; other hosts give the URL to the user. If a login page appears, stop and let the user sign in; do not fill credentials. Do not click the simulator DOM; use send_xtapp_preview_input and send_xtapp_preview_touch. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates.'
+  instructions: 'Use XTApp public contract knowledge before guessing APIs. If the user has not named a folder or app, quote this sentence and wait: 在当前文件夹新建 todo-list，做一款能添加、完成、删除的待办。Classic 用方向键和 OK，Pro 也能点。 After they say it, write ./todo-list (or the path they named). If the current directory is already an XTApp, use it. After project changes, call run_xtapp_preview with that folder\'s absolute path as projectDir, not the parent workspace. Open the exact previewUrl: Cursor must use its built-in browser MCP and keep that tab open; other hosts give the URL to the user. If a login page appears, stop and let the user sign in; do not fill credentials. Do not click the simulator DOM; use send_xtapp_preview_input and send_xtapp_preview_touch. Do not overwrite an unrelated Studio project. Public store tools inspect and copy only the checked-in standard app templates.'
 })
 
 function textResult(text, details = {}) {

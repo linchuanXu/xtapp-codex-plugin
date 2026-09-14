@@ -16,7 +16,7 @@ Widget。
 > 并按 Install into Codex 车道把 XTApp 插件装进 Codex。保留已有配置，使用插件自带的
 > `xtapp_studio` MCP，并报告 XTApp Studio 是否还缺前提。
 
-详细入口是 [`AGENTS.md`](AGENTS.md)；可复用提示词在 [`AGENT_PROMPT.md`](AGENT_PROMPT.md)。
+详细入口是 [`AGENTS.md`](AGENTS.md)。装好之后，agent 要引导用户说出 [`AGENT_PROMPT.md`](AGENT_PROMPT.md) 里的那一句：在当前文件夹新建 `todo-list`，做个待办。
 
 中文安装说明：[docs/INSTALL_MCP.zh-CN.md](docs/INSTALL_MCP.zh-CN.md)、
 [docs/INSTALL_CODEX.zh-CN.md](docs/INSTALL_CODEX.zh-CN.md)、

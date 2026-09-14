@@ -12,23 +12,32 @@ Canonical distribution repository:
 
 Choose exactly one lane:
 
-1. **Install as MCP** — any agent that can run a local stdio MCP.
+1. **Make an app** — the user wants a runnable XTApp and is not asking
+   to install. Use this when `xtapp_studio` is already available.
+2. **Install as MCP** — any agent that can run a local stdio MCP.
    Register `xtapp_studio`. No host plugin directory.
-2. **Install into Codex** — Codex Desktop / Codex CLI with
+3. **Install into Codex** — Codex Desktop / Codex CLI with
    `codex plugin marketplace`. This is the enhanced path: plugin
    snapshot, skills, and widget around the same MCP.
-3. **Inspect or explain** — read `README.md`, `release-manifest.json`,
+4. **Inspect or explain** — read `README.md`, `release-manifest.json`,
    the marketplace manifest, and the plugin manifest. Do not change
    configuration.
-4. **Uninstall** — MCP: `docs/INSTALL_MCP.md#uninstall`. Codex:
+5. **Uninstall** — MCP: `docs/INSTALL_MCP.md#uninstall`. Codex:
    `docs/INSTALL_CODEX.md#uninstall`. Cursor convenience:
    `docs/INSTALL_CURSOR.md#uninstall`.
-5. **Refresh or release** — follow "Maintainer lane" below.
+6. **Refresh or release** — follow "Maintainer lane" below.
 
-If the user names Codex, use the Codex lane. If they name Cursor or
-another MCP host, use the MCP lane. Otherwise: Codex when
+If the user wants to build or preview an app and did not ask to install,
+use Make an app. If they have not named a folder or app yet, quote the
+create sentence from `AGENT_PROMPT.md` and wait; do not invent a second
+questionnaire. If they already sent that sentence, or named another
+path, do not ask again. If `xtapp_studio` is missing, stop after pointing
+at the matching install lane; do not write project files.
+
+If the user names Codex for install, use the Codex lane. If they name
+Cursor or another MCP host, use the MCP lane. Otherwise: Codex when
 `codex plugin marketplace list --json` works; MCP for every other
-session.
+install session.
 
 Do not scan private product sources unless the selected lane explicitly
 requires a maintainer refresh.
@@ -49,7 +58,9 @@ Shared payload: `mcp/`, `skills/`, `knowledge/`, `catalog/`, `widget/`.
 The MCP Apps widget is Codex-only. The simulator is always the official
 preview page.
 
-Call `run_xtapp_preview` with the absolute current worktree `projectDir`.
+Call `run_xtapp_preview` with the absolute XTApp project directory as
+`projectDir` (the folder that contains `manifest.json`, often `todo-list/`
+after a cold start — not the parent workspace).
 Use the exact `previewUrl`. Hosts with a browser MCP (Cursor) must open
 that URL (`browser_tabs` / `browser_navigate`) and keep the tab there.
 Other hosts give the URL to the user. If a login page appears, stop and
@@ -61,6 +72,50 @@ Official Studio may already have another project open; sync creates or
 reuses a plugin-owned project for this worktree and must not overwrite
 the user's other apps. Nested `domain/` Lua is synced. Inspect templates
 with `get_xtapp_store_template`, then copy with `copy_xtapp_store_template`.
+
+## Make an app
+
+The user-facing line is the one sentence in `AGENT_PROMPT.md`. This lane
+authorizes writing an XTApp after the user says that sentence, or names
+another folder or app. It does not authorize install changes, Git
+pushes, or store publishing.
+
+If the user only asked to install, or has not named a folder or app,
+do not start this lane. Quote the create sentence and wait.
+
+### 1. Choose the project directory
+
+Default: a `todo-list` subdirectory of the current workspace. Create it
+if needed. The user already said to create it; do not ask again.
+
+Use another path only when the user names one, or says to use the
+current directory. If the current directory already has `manifest.json`
+and its entry Lua at the root, use the current directory and do not
+nest. If `todo-list` already exists, keep using it; do not rename it or
+empty it. Do not refuse because the parent folder already has other
+projects.
+
+`projectDir` for every preview call is that folder's absolute path.
+
+### 2. Write a minimum app
+
+Search the public contract before editing. Do not invent APIs. The
+smoke example is a todo list that can add, complete, and delete tasks.
+Classic must work with `up/down/left/right/ok/back`. Pro also supports
+touch. Do not copy a store template unless the user asked for one.
+
+### 3. Preview that folder
+
+Call `run_xtapp_preview` with the todo (or named) directory. Open the
+exact `previewUrl`. Login, host browser, and simulator rules are the
+same as in the install lanes. `need_login_or_open_page` /
+`not_connected` is not success.
+
+### 4. Hand back
+
+Report the project directory, whether preview is `running`, and that
+login is still pending if it is. Never report success for a parent
+workspace preview.
 
 ## Install as MCP
 
@@ -129,9 +184,12 @@ Report:
 - whether skills were linked;
 - whether the preview URL was opened (host browser or by the user);
 - whether login is still pending;
-- that a new agent session is needed after MCP reload.
+- that a new agent session is needed after MCP reload;
+- the exact next sentence the user should send, quoted from
+  `AGENT_PROMPT.md` (create `todo-list` and make the todo app).
 
-Never report "preview works" when only MCP registration was verified.
+Do not write the todo app in the install turn. Never report
+"preview works" when only MCP registration was verified.
 
 Cursor details: `docs/INSTALL_CURSOR.md`. Generic MCP:
 `docs/INSTALL_MCP.md`.
@@ -237,9 +295,12 @@ Report:
 - whether the official Studio preview page was reached;
 - that a new Codex task is needed to load the plugin snapshot;
 - whether a preview run was tested or remains pending login/preview;
-- that project files stay on the local machine.
+- that project files stay on the local machine;
+- the exact next sentence the user should send, quoted from
+  `AGENT_PROMPT.md` (create `todo-list` and make the todo app).
 
-Never report "preview works" when only package installation was verified.
+Do not write the todo app in the install turn. Never report
+"preview works" when only package installation was verified.
 
 ## Safety boundaries
 

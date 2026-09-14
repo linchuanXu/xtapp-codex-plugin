@@ -19,7 +19,7 @@
       "Classic and Pro validation"
     ],
     "defaultPrompt": [
-      "Open the XTApp Studio preview for this project.",
+      "在当前文件夹新建 todo-list，做一款能添加、完成、删除的待办。Classic 用方向键和 OK，Pro 也能点。",
       "Search the XTApp Lua contract for this feature.",
       "Find a public XTApp app I can use as a template."
     ]

@@ -18,7 +18,8 @@ Give Codex this instruction (MCP / Cursor prompts are in
 > lane, preserve existing configuration, keep the bundled `xtapp_studio`
 > MCP, and report any XTApp Studio prerequisite.
 
-The detailed entrypoint is [`AGENTS.md`](AGENTS.md); a reusable prompt is in
+The detailed entrypoint is [`AGENTS.md`](AGENTS.md). After install, the
+agent should ask the user to say the one create sentence in
 [`AGENT_PROMPT.md`](AGENT_PROMPT.md).
 
 ## Architecture
