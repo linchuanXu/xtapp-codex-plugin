@@ -12,8 +12,8 @@
 
 1. 调用 `run_xtapp_preview`，拿到带插件 session 的 `previewUrl`。不要只打开 `https://xtapp-ai-dev.xteink.cn/studio/preview?preview=1`。
 2. 打开这条 URL，并保持打开。打开方式取决于宿主：
-   - **Cursor：** 用内置浏览器 MCP（`browser_tabs` / `browser_navigate`）打开 `previewUrl`，不要请用户另开 Chrome。出现登录页就停下，请用户在这个内置页里登录，Agent 不填账号密码。登录后再回到同一条 `previewUrl`。
-   - **Codex 或没有浏览器 MCP 的宿主：** 把 `previewUrl` 原样交给用户打开。出现登录页就先登录，再回到同一条地址。
+   - **有浏览器 MCP 的宿主（Cursor）：** 用内置浏览器 MCP（`browser_tabs` / `browser_navigate`）打开 `previewUrl`，不要请用户另开 Chrome。出现登录页就停下，请用户在这个内置页里登录，Agent 不填账号密码。登录后再回到同一条 `previewUrl`。
+   - **其他 MCP 宿主（含 Codex）：** 把 `previewUrl` 原样交给用户打开。出现登录页就先登录，再回到同一条地址。Codex 插件可能另有状态 Widget，那不是模拟器。
 3. 再调 `get_xtapp_preview_status`。仍是 `need_login_or_open_page` 时，停下来，用同一条 URL 再打开一次。
 4. 不要用浏览器去点模拟器 DOM。按键走 `send_xtapp_preview_input`，点选走 `send_xtapp_preview_touch`。设备截图走 `capture_xtapp_preview`。浏览器截图只能确认预览页已打开，不能代替模拟器截图。
 5. MCP 重启后 session 复用本机 `~/.xtapp/codex-preview-session`，同一 URL 仍然有效。文件监听不会跨进程存活，每次预览都要再走一遍就绪检查。

@@ -18,7 +18,7 @@ Official Studio may already have another project open (for example 斗地主). S
 
 **Cursor (built-in browser MCP):** do not ask the user to open Chrome. Use the host browser tools (`browser_tabs`, `browser_navigate`) to open `previewUrl` and **keep that tab on that URL**. The tab is the live simulator connection (EventSource). If a login page appears, **stop**. Ask the user to sign in in that same tab. Do not fill credentials, passkeys, or captchas. After they confirm, go back to the same `previewUrl` if the tab left it, then re-check status.
 
-**Codex and hosts without a browser MCP:** give the user the exact `previewUrl` and ask them to open it. If a login page appears, they log in and return to that same URL. Keep it open.
+**Any MCP host without a browser MCP, including Codex:** give the user the exact `previewUrl` and ask them to open it. If a login page appears, they log in and return to that same URL. Keep it open. Codex may also show a status widget; that widget is not the simulator.
 
 Do not click the simulator canvas with browser DOM tools (`browser_click` / `browser_type`). Device input is `send_xtapp_preview_input` and `send_xtapp_preview_touch`. Device PNG is `capture_xtapp_preview`. A browser screenshot may only confirm that the preview page is showing; it is not the simulator capture.
 

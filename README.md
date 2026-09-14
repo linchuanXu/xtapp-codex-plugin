@@ -2,13 +2,15 @@
 
 English · [中文文档](README.zh-CN.md)
 
-This is an agent-first, lightweight distribution repository for the
-XTApp plugin. Codex Desktop / Codex CLI is the marketplace host. Cursor
-uses the same bundled MCP and opens preview in its built-in browser.
+This is an agent-first, lightweight distribution repository. The portable
+contract is a local stdio MCP named `xtapp_studio`. Any MCP-capable agent
+can register it. Codex Desktop / Codex CLI additionally has a marketplace
+**plugin** that bundles the same MCP plus skills and a status widget.
 
 ## Give this repository to an agent
 
-Give Codex this instruction (Cursor prompt is in [`AGENT_PROMPT.md`](AGENT_PROMPT.md)):
+Give Codex this instruction (MCP / Cursor prompts are in
+[`AGENT_PROMPT.md`](AGENT_PROMPT.md)):
 
 > Read
 > `https://github.com/linchuanXu/xtapp-codex-plugin/blob/main/AGENTS.md`
@@ -21,13 +23,12 @@ The detailed entrypoint is [`AGENTS.md`](AGENTS.md); a reusable prompt is in
 
 ## Architecture
 
-The plugin is the agent entry. It bundles skills, a local stdio MCP, and a
-Codex-only status widget. It does not execute Lua and it is not the device
-simulator:
+The MCP is the product. It does not execute Lua and it is not the device
+simulator. Codex plugin mode is a better packaging of that MCP:
 
 ```text
-Codex: marketplace plugin; user opens previewUrl
-Cursor: same xtapp_studio MCP; built-in browser opens previewUrl
+Any MCP agent: register xtapp_studio; user or host browser opens previewUrl
+Codex plugin:  marketplace wraps the same MCP + skills + status widget
   -> XTApp Studio preview page
   -> Lua Worker / X4 Classic / X4 Pro simulator
 ```
@@ -35,34 +36,47 @@ Cursor: same xtapp_studio MCP; built-in browser opens previewUrl
 Users write locally, then one official webpage runs the preview. Call
 `run_xtapp_preview` with the current worktree path. That `previewUrl`
 includes the plugin session. Do not open the bare
-`/studio/preview?preview=1` page. Cursor must open the URL in its built-in
-browser and keep the tab there. Codex gives the URL to the user. If login
-appears, the user signs in and returns to the same URL. Do not click the
-simulator DOM; use `send_xtapp_preview_touch` / `send_xtapp_preview_input`.
-`need_login_or_open_page` / `not_connected` is not success. The official
-page may already have another project open; sync creates or reuses a
-plugin-owned project for this worktree instead of overwriting it.
+`/studio/preview?preview=1` page. Hosts with a browser MCP (Cursor) open
+the URL in that browser and keep the tab there. Other hosts give the URL
+to the user. If login appears, the user signs in and returns to the same
+URL. Do not click the simulator DOM; use `send_xtapp_preview_touch` /
+`send_xtapp_preview_input`. `need_login_or_open_page` / `not_connected`
+is not success. The official page may already have another project open;
+sync creates or reuses a plugin-owned project for this worktree instead
+of overwriting it.
 
 ## Current package
 
+- Baseline: local stdio MCP `xtapp_studio` (`node ./mcp/server.bundle.mjs`)
+- Codex enhancement: Git marketplace plugin from `main`
 - Marketplace: `xtapp-codex-plugin-github`
 - Plugin: `xtapp-codex-plugin`
 - Display name: `XTApp Studio`
 - Stable plugin selector: `xtapp-codex-plugin@xtapp-codex-plugin-github`
 - Plugin version: `0.1.5`
-- Distribution: published Git marketplace from `main` (Codex)
-- Hosts: Codex (marketplace); Cursor (same MCP + built-in browser)
-- MCP: bundled `xtapp_studio` stdio (`node ./mcp/server.bundle.mjs`)
 - Runtime: signed-in XTApp Studio
 - Default preview: official Studio host; always use the `previewUrl` from `get_xtapp_preview_status`
-- Skills: `xtapp-contracts`, `xtapp-open-preview`
+- Skills: `xtapp-contracts`, `xtapp-open-preview` (portable; auto-loaded in Codex)
 - Public knowledge: `knowledge/index.json` (schema 2, 22 entries)
 - Public catalog: `catalog/index.json` (107 reviewed text templates)
-- Widget: `widget/index.html` shows preview status, not the simulator frame
-- GitHub ZIP / repository archive: install through the Git marketplace
-  commands below. Do not copy files into a Codex home by hand.
+- Widget: `widget/index.html` is Codex-only; shows preview status, not the simulator frame
 
 ## Direct installation
+
+### Any MCP agent
+
+From a checkout of this repository, print the stdio snippet and merge
+only `mcpServers.xtapp_studio` into the host config:
+
+```bash
+node scripts/cursor-mcp-config.mjs
+```
+
+See [docs/INSTALL_MCP.md](docs/INSTALL_MCP.md). Cursor's built-in browser
+can open `previewUrl`; that is still the MCP lane, not a second plugin.
+See [docs/INSTALL_CURSOR.md](docs/INSTALL_CURSOR.md).
+
+### Codex plugin
 
 ```bash
 codex plugin marketplace add linchuanXu/xtapp-codex-plugin --ref main --json
@@ -92,33 +106,22 @@ them to open it. If a login page appears, they should log in and return
 to that URL. Keep it open. Then ask Codex to preview the current
 worktree.
 
-Cursor has no plugin marketplace. From a checkout of this repository:
-
-```bash
-node scripts/cursor-mcp-config.mjs --write-user
-```
-
-That upserts `xtapp_studio` into `~/.cursor/mcp.json`. Reload MCP, symlink
-the two skills, start a new Agent chat, then let the agent open
-`previewUrl` in Cursor's built-in browser. See
-[docs/INSTALL_CURSOR.md](docs/INSTALL_CURSOR.md).
-
-See [docs/INSTALL_CODEX.md](docs/INSTALL_CODEX.md) for Codex isolated
+See [docs/INSTALL_CODEX.md](docs/INSTALL_CODEX.md) for isolated
 validation and uninstall, or the [Chinese install guide](docs/INSTALL_CODEX.zh-CN.md).
 Identity fields live in [`release-manifest.json`](release-manifest.json).
 
 ## Source and release boundary
 
-This repository contains the portable Codex marketplace payload,
-marketplace metadata, bundled public knowledge, bundled public templates,
-and installation documentation. Cursor is documented as a consumer of the
-same MCP, not a second host directory. Lua execution, asset pipelines, and
-the device simulator stay in XTApp Studio.
+This repository contains the portable MCP, optional Codex marketplace
+payload, public knowledge, public templates, and installation
+documentation. Other agents consume the same MCP. They are not a second
+host directory. Lua execution, asset pipelines, and the device simulator
+stay in XTApp Studio.
 
 Product updates behind the stable `/preview/*` contract do not
 automatically change this repository. Refresh the knowledge index and
 catalog only from maintainer-local sources, and never publish those
 source locations.
 
-This revision ships the Codex payload at the repository root. Do not nest
-it under `plugins/codex/`. Do not add `hosts/cursor/`.
+This revision ships the Codex plugin payload at the repository root. Do
+not nest it under `plugins/codex/`. Do not add `hosts/<name>/`.

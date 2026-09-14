@@ -2,10 +2,14 @@
 
 English · [中文](INSTALL_CURSOR.zh-CN.md)
 
-Cursor is not a second Codex marketplace package. It uses the **same**
-bundled `xtapp_studio` stdio MCP. The host difference is the preview
-surface: Cursor opens `previewUrl` in its **built-in browser** and keeps
-that tab open. Device input and capture stay on `/preview/*` tools.
+Cursor is an MCP client, not a second Codex marketplace package. It uses
+the **same** bundled `xtapp_studio` stdio MCP as any other agent. The
+extra host capability is the preview surface: Cursor opens `previewUrl`
+in its **built-in browser** and keeps that tab open. Device input and
+capture stay on `/preview/*` tools.
+
+Generic MCP install: [INSTALL_MCP.md](INSTALL_MCP.md). Codex plugin
+enhancement: [INSTALL_CODEX.md](INSTALL_CODEX.md).
 
 ## Supported environment
 

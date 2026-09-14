@@ -32,3 +32,12 @@ test('预览 skill 要求 Cursor 用内置浏览器打开，点选走 MCP', asyn
   assert.match(skill, /send_xtapp_preview_touch/)
   assert.match(skill, /Do not click the simulator canvas/)
 })
+
+test('入口把 MCP 当基线，Codex 插件当增强', async () => {
+  const agents = await readFile(resolve(ROOT, 'AGENTS.md'), 'utf8')
+  const readme = await readFile(resolve(ROOT, 'README.md'), 'utf8')
+  assert.match(agents, /Install as MCP/)
+  assert.match(agents, /The MCP is the product/)
+  assert.match(readme, /Any MCP agent/)
+  assert.match(readme, /Codex plugin/)
+})

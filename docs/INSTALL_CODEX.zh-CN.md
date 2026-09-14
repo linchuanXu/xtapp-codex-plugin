@@ -4,6 +4,10 @@
 
 返回 [中文首页](../README.zh-CN.md)
 
+Codex 是增强宿主：marketplace **插件**打包同一份 `xtapp_studio` MCP，再加上
+skills 和状态 Widget。没有插件能力的智能体走
+[INSTALL_MCP.zh-CN.md](INSTALL_MCP.zh-CN.md)。
+
 ## 支持的环境
 
 - 带 `codex plugin marketplace` 的 Codex Desktop 或 Codex CLI

@@ -4,9 +4,13 @@
 
 返回 [中文首页](../README.zh-CN.md)
 
-Cursor 不是第二份 Codex marketplace 包。它用**同一份**本地 `xtapp_studio`
-stdio MCP。宿主差异只在预览面：Cursor 用**内置浏览器**打开 `previewUrl` 并
-保持该标签页。设备按键、点选和截图仍走 `/preview/*`。
+Cursor 是 MCP 客户端，不是第二份 Codex marketplace 包。它和其他智能体一样
+用**同一份**本地 `xtapp_studio` stdio MCP。多出来的宿主能力只在预览面：
+Cursor 用**内置浏览器**打开 `previewUrl` 并保持该标签页。设备按键、点选和
+截图仍走 `/preview/*`。
+
+通用 MCP 安装：[INSTALL_MCP.zh-CN.md](INSTALL_MCP.zh-CN.md)。Codex 插件
+增强：[INSTALL_CODEX.zh-CN.md](INSTALL_CODEX.zh-CN.md)。
 
 ## 支持的环境
 

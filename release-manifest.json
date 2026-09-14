@@ -5,8 +5,21 @@
   "agentEntrypoint": "AGENTS.md",
   "distributionRepository": "https://github.com/linchuanXu/xtapp-codex-plugin",
   "distributionStatus": "published-git-marketplace",
-  "supportedHosts": ["codex", "cursor"],
+  "baseline": "mcp-stdio",
+  "supportedHosts": ["mcp", "codex", "cursor"],
+  "mcp": {
+    "name": "xtapp_studio",
+    "command": "node",
+    "args": ["./mcp/server.bundle.mjs"],
+    "install": "docs/INSTALL_MCP.md",
+    "configPrinter": "scripts/cursor-mcp-config.mjs"
+  },
+  "codex": {
+    "mode": "plugin-marketplace",
+    "install": "docs/INSTALL_CODEX.md"
+  },
   "cursor": {
+    "mode": "mcp-client",
     "previewSurface": "builtin-browser",
     "mcp": "bundled xtapp_studio stdio",
     "install": "docs/INSTALL_CURSOR.md",

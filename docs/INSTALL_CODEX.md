@@ -2,6 +2,10 @@
 
 English · [中文](INSTALL_CODEX.zh-CN.md)
 
+Codex is the enhanced host: a marketplace **plugin** that bundles the
+same `xtapp_studio` MCP plus skills and a status widget. Agents without
+plugin support use [INSTALL_MCP.md](INSTALL_MCP.md).
+
 ## Supported environment
 
 - Codex Desktop or Codex CLI with `codex plugin marketplace`
