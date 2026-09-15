@@ -36526,6 +36526,14 @@ function describePreviewReady({
       message: `\u8BF7\u6253\u5F00\u8FD9\u4E2A\u9884\u89C8\u9875\u3002\u5982\u679C\u51FA\u73B0\u767B\u5F55\u9875\uFF0C\u5148\u767B\u5F55\uFF0C\u518D\u56DE\u5230\u8FD9\u4E2A\u5730\u5740\uFF0C\u5E76\u4FDD\u6301\u6253\u5F00\uFF1A${url2}`
     };
   }
+  if (connectedStatus === "timeout" || commandStatus === "timeout") {
+    return {
+      userStatus: "timeout",
+      displayName: name || null,
+      previewUrl: url2,
+      message: message || "\u5B98\u7F51\u9884\u89C8\u6865\u6CA1\u6709\u53CA\u65F6\u54CD\u5E94\u3002\u8BF7\u786E\u8BA4\u9884\u89C8\u9875\u4ECD\u6253\u5F00\u7740\u540C\u4E00\u6761\u94FE\u63A5\uFF0C\u7136\u540E\u91CD\u8BD5\u3002"
+    };
+  }
   if (commandStatus === "queued_timeout") {
     return {
       userStatus: "timeout",
@@ -36765,10 +36773,11 @@ function classifyPreviewBridgeError(error61, origin = "") {
     return { status: "not_connected", message: `\u65E0\u6CD5\u8FDE\u63A5 Studio \u9884\u89C8\u6865\uFF1A${origin}` };
   }
   if (error61?.name === "AbortError") {
-    const timeout = new Error(`Studio \u54CD\u5E94\u8D85\u65F6\uFF1A${origin}`);
-    timeout.code = "PREVIEW_TIMEOUT";
-    timeout.cause = error61;
-    throw timeout;
+    return {
+      status: "timeout",
+      code: "PREVIEW_TIMEOUT",
+      message: `Studio \u54CD\u5E94\u8D85\u65F6\uFF1A${origin}`
+    };
   }
   throw error61;
 }
@@ -36780,6 +36789,9 @@ function describeSourceSync(result = {}) {
   const dropped = formatDroppedAssets(result.dropped);
   if (result.status === "not_connected") {
     return [result.message, dropped].filter(Boolean).join("\n");
+  }
+  if (result.status === "timeout") {
+    return [result.message || "Studio \u9884\u89C8\u6865\u54CD\u5E94\u8D85\u65F6\uFF0C\u6E90\u7801\u8FD8\u6CA1\u9001\u5B8C\u3002\u8BF7\u786E\u8BA4\u9884\u89C8\u9875\u4ECD\u5F00\u7740\u540C\u4E00\u6761\u94FE\u63A5\uFF0C\u7136\u540E\u91CD\u8BD5\u3002", dropped].filter(Boolean).join("\n");
   }
   if (result.status === "unchanged") {
     return [`\u6E90\u7801\u672A\u53D8\u5316\uFF0Crevision ${result.revision || ""} \u5DF2\u5728\u9884\u89C8\u6865\u4E0A\u3002`, dropped].filter(Boolean).join("\n");
@@ -37396,8 +37408,8 @@ async function ensurePreviewReady({ projectDir, device = "x4_pro" }) {
   const displayName = displayNameFromManifest(snapshot.manifest, snapshot.projectName);
   startSourceWatcher(snapshot.projectDir);
   const status = await bridgeRequest("/preview/status", {}, "GET");
-  if (status.status === "not_connected") {
-    return previewReadyResult({ ...status, projectDir: snapshot.projectDir, watching: true }, { displayName, commandStatus: "not_connected" });
+  if (status.status === "not_connected" || status.status === "timeout") {
+    return previewReadyResult({ ...status, projectDir: snapshot.projectDir, watching: true }, { displayName, commandStatus: status.status });
   }
   const source = await syncProjectSource(snapshot.projectDir);
   const path = previewRunPath(status.status);
@@ -37421,12 +37433,14 @@ function stopSourceWatcher(projectDir) {
 function startSourceWatcher(projectDir) {
   const existing = sourceWatchers.get(projectDir);
   if (existing) return existing;
-  const watcher = { stopped: false, timer: null, lastRevision: lastPushed.get(projectDir)?.revision || "" };
+  const watcher = { stopped: false, timer: null, lastRevision: lastPushed.get(projectDir)?.revision || "", cooldownUntil: 0 };
   watcher.timer = setInterval(async () => {
     if (watcher.stopped || watcher.busy) return;
+    if (watcher.cooldownUntil && Date.now() < watcher.cooldownUntil) return;
     watcher.busy = true;
     try {
-      await syncProjectSource(projectDir);
+      const result = await syncProjectSource(projectDir);
+      if (result?.status === "timeout") watcher.cooldownUntil = Date.now() + 8e3;
     } catch {
     } finally {
       watcher.busy = false;
@@ -37454,7 +37468,7 @@ server.registerTool("watch_xtapp_preview", { description: "Watch a local worktre
 server.registerTool("get_xtapp_preview_status", { description: "Read whether the official Studio preview page is open, which app it is showing, and the exact previewUrl to open.", inputSchema: {} }, async () => {
   const result = await bridgeRequest("/preview/status", {}, "GET");
   let displayName = displayNameFromManifest(result.manifest);
-  if (!displayName && result.status !== "not_connected") {
+  if (!displayName && result.status !== "not_connected" && result.status !== "timeout") {
     const context = await bridgeRequest("/preview/context", {}, "GET");
     displayName = displayNameFromManifest(context.manifest);
   }

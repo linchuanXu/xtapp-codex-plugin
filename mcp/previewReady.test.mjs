@@ -34,6 +34,10 @@ test('人读状态区分运行中、超时和页已打开', () => {
     displayName: '斗地主',
   }).userStatus, 'running')
   assert.equal(describePreviewReady({
+    connectedStatus: 'timeout',
+    previewUrl: 'https://example/preview',
+  }).userStatus, 'timeout')
+  assert.equal(describePreviewReady({
     connectedStatus: 'ready',
     commandStatus: 'queued_timeout',
     previewUrl: 'https://example/preview',

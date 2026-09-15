@@ -27,9 +27,13 @@ test('connection refusal is not_connected; abort is a real timeout', () => {
     classifyPreviewBridgeError({ code: 'ECONNREFUSED' }, 'https://xtapp-ai-dev.xteink.cn'),
     { status: 'not_connected', message: '无法连接 Studio 预览桥：https://xtapp-ai-dev.xteink.cn' },
   )
-  assert.throws(
-    () => classifyPreviewBridgeError({ name: 'AbortError' }, 'https://xtapp-ai-dev.xteink.cn'),
-    (error) => error.code === 'PREVIEW_TIMEOUT' && /响应超时/.test(error.message),
+  assert.deepEqual(
+    classifyPreviewBridgeError({ name: 'AbortError' }, 'https://xtapp-ai-dev.xteink.cn'),
+    {
+      status: 'timeout',
+      code: 'PREVIEW_TIMEOUT',
+      message: 'Studio 响应超时：https://xtapp-ai-dev.xteink.cn',
+    },
   )
 })
 
@@ -60,4 +64,5 @@ test('revision conflict is a typed error, unchanged sync stays honest', () => {
   assert.equal(isRevisionConflict({ code: 'REVISION_CONFLICT' }), true)
   assert.equal(isRevisionConflict({ code: 'PREVIEW_TIMEOUT' }), false)
   assert.match(describeSourceSync({ status: 'unchanged', revision: 'abc' }), /源码未变化/)
+  assert.match(describeSourceSync({ status: 'timeout', message: 'Studio 响应超时：https://example' }), /响应超时/)
 })

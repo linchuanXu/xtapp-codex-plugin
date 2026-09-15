@@ -299,8 +299,8 @@ async function ensurePreviewReady({ projectDir, device = 'x4_pro' }) {
   const displayName = displayNameFromManifest(snapshot.manifest, snapshot.projectName)
   startSourceWatcher(snapshot.projectDir)
   const status = await bridgeRequest('/preview/status', {}, 'GET')
-  if (status.status === 'not_connected') {
-    return previewReadyResult({ ...status, projectDir: snapshot.projectDir, watching: true }, { displayName, commandStatus: 'not_connected' })
+  if (status.status === 'not_connected' || status.status === 'timeout') {
+    return previewReadyResult({ ...status, projectDir: snapshot.projectDir, watching: true }, { displayName, commandStatus: status.status })
   }
   const source = await syncProjectSource(snapshot.projectDir)
   const path = previewRunPath(status.status)
@@ -326,12 +326,14 @@ function stopSourceWatcher(projectDir) {
 function startSourceWatcher(projectDir) {
   const existing = sourceWatchers.get(projectDir)
   if (existing) return existing
-  const watcher = { stopped: false, timer: null, lastRevision: lastPushed.get(projectDir)?.revision || '' }
+  const watcher = { stopped: false, timer: null, lastRevision: lastPushed.get(projectDir)?.revision || '', cooldownUntil: 0 }
   watcher.timer = setInterval(async () => {
     if (watcher.stopped || watcher.busy) return
+    if (watcher.cooldownUntil && Date.now() < watcher.cooldownUntil) return
     watcher.busy = true
     try {
-      await syncProjectSource(projectDir)
+      const result = await syncProjectSource(projectDir)
+      if (result?.status === 'timeout') watcher.cooldownUntil = Date.now() + 8000
     } catch { /* The next polling cycle retries transient edits or bridge restarts. */ } finally {
       watcher.busy = false
     }
@@ -362,7 +364,7 @@ server.registerTool('watch_xtapp_preview', { description: 'Watch a local worktre
 server.registerTool('get_xtapp_preview_status', { description: 'Read whether the official Studio preview page is open, which app it is showing, and the exact previewUrl to open.', inputSchema: {} }, async () => {
   const result = await bridgeRequest('/preview/status', {}, 'GET')
   let displayName = displayNameFromManifest(result.manifest)
-  if (!displayName && result.status !== 'not_connected') {
+  if (!displayName && result.status !== 'not_connected' && result.status !== 'timeout') {
     const context = await bridgeRequest('/preview/context', {}, 'GET')
     displayName = displayNameFromManifest(context.manifest)
   }

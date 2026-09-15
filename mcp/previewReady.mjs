@@ -34,6 +34,14 @@ export function describePreviewReady({
       message: `请打开这个预览页。如果出现登录页，先登录，再回到这个地址，并保持打开：${url}`,
     }
   }
+  if (connectedStatus === 'timeout' || commandStatus === 'timeout') {
+    return {
+      userStatus: 'timeout',
+      displayName: name || null,
+      previewUrl: url,
+      message: message || '官网预览桥没有及时响应。请确认预览页仍打开着同一条链接，然后重试。',
+    }
+  }
   if (commandStatus === 'queued_timeout') {
     return {
       userStatus: 'timeout',

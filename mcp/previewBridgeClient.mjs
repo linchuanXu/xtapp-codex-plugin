@@ -18,10 +18,11 @@ export function classifyPreviewBridgeError(error, origin = '') {
     return { status: 'not_connected', message: `无法连接 Studio 预览桥：${origin}` }
   }
   if (error?.name === 'AbortError') {
-    const timeout = new Error(`Studio 响应超时：${origin}`)
-    timeout.code = 'PREVIEW_TIMEOUT'
-    timeout.cause = error
-    throw timeout
+    return {
+      status: 'timeout',
+      code: 'PREVIEW_TIMEOUT',
+      message: `Studio 响应超时：${origin}`,
+    }
   }
   throw error
 }
@@ -35,6 +36,9 @@ export function describeSourceSync(result = {}) {
   const dropped = formatDroppedAssets(result.dropped)
   if (result.status === 'not_connected') {
     return [result.message, dropped].filter(Boolean).join('\n')
+  }
+  if (result.status === 'timeout') {
+    return [result.message || 'Studio 预览桥响应超时，源码还没送完。请确认预览页仍开着同一条链接，然后重试。', dropped].filter(Boolean).join('\n')
   }
   if (result.status === 'unchanged') {
     return [`源码未变化，revision ${result.revision || ''} 已在预览桥上。`, dropped].filter(Boolean).join('\n')
